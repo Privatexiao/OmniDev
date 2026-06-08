@@ -19,6 +19,39 @@
     "maxPort": {
       "type": "integer",
       "description": "本地开发启动端口分配最大值，默认 8150"
+    },
+    "primarySubproject": {
+      "type": "string",
+      "description": "默认前端子项目目录名称，例如 manage"
+    },
+    "excludeDirs": {
+      "type": "array",
+      "description": "项目扫描或路径推断时需要排除的目录名称",
+      "items": {
+        "type": "string"
+      }
+    },
+    "preset": {
+      "type": "object",
+      "description": "项目级凭证注入预设，按业务项目需要覆盖全局配置",
+      "properties": {
+        "envVarMap": {
+          "type": "object",
+          "description": "凭证字段到环境变量的映射规则，值可为环境变量名或带 template 的模板表达式",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "npmScriptMap": {
+      "type": "object",
+      "description": "预留脚本映射扩展字段；当前启动逻辑主要按 dev:<env>、<env>、dev、serve、start 顺序自动匹配",
+      "additionalProperties": {
+        "type": "string"
+      }
     }
-  }
+  },
+  "additionalProperties": true
 }

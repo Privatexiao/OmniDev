@@ -244,7 +244,17 @@ router.post('/api/app-config', (req, res) => {
 
 // ==================== 软件检查更新模块 ====================
 
-const CURRENT_VERSION = '0.1.0';
+const VERSION_FILE_PATH = path.resolve(__dirname, '../../version.json');
+
+function getCurrentVersion() {
+  try {
+    const versionInfo = JSON.parse(fs.readFileSync(VERSION_FILE_PATH, 'utf-8'));
+    return versionInfo.version || '0.0.0';
+  } catch (err) {
+    console.warn('[UpdateService] 读取 version.json 失败，当前版本回落为 0.0.0:', err.message);
+    return '0.0.0';
+  }
+}
 
 /**
  * 🚀 原生 Node.js 兼容性 HTTP/HTTPS 请求工具方法，彻底杜绝跨域，免除第三方依赖
@@ -307,12 +317,13 @@ router.get('/api/system/check-update', async (req, res) => {
     const cleanUrl = `${updateUrl}${separator}_t=${Date.now()}`;
 
     const updateData = await httpGet(cleanUrl);
+    const currentVersion = getCurrentVersion();
     const latestVersion = updateData.version || '0.0.0';
-    const hasUpdate = isNewerVersion(CURRENT_VERSION, latestVersion);
+    const hasUpdate = isNewerVersion(currentVersion, latestVersion);
 
     res.json({
       success: true,
-      currentVersion: CURRENT_VERSION,
+      currentVersion,
       latestVersion,
       hasUpdate,
       changelog: updateData.changelog || updateData.notes || '暂无更新日志。',
@@ -323,10 +334,11 @@ router.get('/api/system/check-update', async (req, res) => {
     console.error(`[UpdateService] 检查更新源失败 (${req.query.updateUrl ? '测试源' : '默认源'}):`, err.message);
     
     // 💡 普通用户友好体验：连接失败归为“不能更新”，优雅返回“无更新”的正常JSON，避免前台弹红色报错阻碍体验
+    const currentVersion = getCurrentVersion();
     res.json({
       success: true,
-      currentVersion: CURRENT_VERSION,
-      latestVersion: CURRENT_VERSION,
+      currentVersion,
+      latestVersion: currentVersion,
       hasUpdate: false,
       changelog: '无法连接到更新服务器。'
     });

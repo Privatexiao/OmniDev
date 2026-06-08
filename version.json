@@ -1,0 +1,5 @@
+{
+  "version": "0.1.1",
+  "changelog": "优化了一下问题",
+  "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe"
+}

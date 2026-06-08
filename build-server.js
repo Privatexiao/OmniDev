@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 
 const rootDir = __dirname;
 const distDir = path.join(rootDir, 'dist-server');
+const versionInfo = JSON.parse(fs.readFileSync(path.join(rootDir, 'version.json'), 'utf-8'));
 
 console.log('========================================');
 console.log('🔧 正在启动 Node.js 后端独立依赖构建...');
@@ -46,6 +47,9 @@ function copyFolderSync(from, to) {
 
 copyFolderSync(path.join(rootDir, 'server'), path.join(distDir, 'server'));
 
+// 复制统一版本源，保证打包后的后端更新检查读取同一版本号。
+fs.copyFileSync(path.join(rootDir, 'version.json'), path.join(distDir, 'version.json'));
+
 // 💡 复制辅助自动化脚本 scripts 文件夹（包含 auto_login.py 等），保证打包后 Python 助手功能正常
 if (fs.existsSync(path.join(rootDir, 'scripts'))) {
   copyFolderSync(path.join(rootDir, 'scripts'), path.join(distDir, 'scripts'));
@@ -62,7 +66,7 @@ copyFolderSync(configSrc, path.join(distDir, 'config'));
 // 4. 创建专用的生产依赖 package.json，彻底剥离 Vite 和 Tauri 命令行开发依赖
 const pkg = {
   name: "omnidev-server",
-  version: "1.0.0",
+  version: versionInfo.version,
   private: true,
   type: "module",
   dependencies: {

@@ -16,6 +16,13 @@
 - **浏览器免密登录**：调起 Python + Playwright 自动识别表单并填密登录，依赖缺失自动自愈安装。
 - **远程 SSH 辅助**：长连接池复用，远程 Git 分支查询/强力干净切换、远程命令下发，本地/远程日志分流落盘。
 
+## 环境要求
+
+- Node.js：建议 LTS 版本，需自带 npm。
+- PowerShell：Windows 默认使用 PowerShell 运行初始化脚本。
+- Python：仅浏览器自动登录功能需要；未安装时可跳过初始化安装，后续功能触发时再处理。
+- Tauri 桌面打包：需额外安装 Rust 与 Tauri 2 相关系统依赖。
+
 ---
 
 ## 📦 快速开始 (Quick Start)
@@ -27,11 +34,13 @@
 git clone <repo-url> omnidev
 cd omnidev
 
-# 2. 一键初始化（复制配置 + npm install + 自动登录依赖，结尾询问是否启动）
+# 2. 一键初始化（复制配置 + npm install + 可选自动登录依赖，结尾询问是否启动）
 .\setup.ps1
 ```
 
-`setup.ps1` 会自动完成：复制配置模板 → 检测 Node 并 `npm install` → 安装自动登录依赖 → 询问是否立即 `npm run dev` 启动。
+`setup.ps1` 会自动完成：复制配置模板 → 检测 Node 并执行 `npm install` → 询问是否安装自动登录依赖 → 询问是否立即 `npm run dev` 启动。
+
+自动登录依赖安装是可选步骤；使用 `-Yes` 时交互确认默认按 Yes 处理，使用 `-SkipAutoLogin` 可跳过。
 
 ###   进阶参数
 
@@ -45,6 +54,34 @@ cd omnidev
 > - `setup.ps1` 会把 `config.example/` 复制为您本机私有的 `config/`，该目录已被 `.gitignore` 排除，本地路径与 SSH 密钥绝不会提交。
 > - 首次运行 `.ps1` 若被执行策略拦截，先执行：`Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`。
 > - 不想用一键脚本，也可手动 `npm install` 后 `npm run dev`。
+
+---
+
+## 🧭 运行方式
+
+### 开发模式
+
+```powershell
+npm run dev
+```
+
+该命令会拉起 Node 后端服务，并启动 Vite 前端。前端端口读取 `config/app.json.frontendPort`，后端端口读取 `config/app.json.serverPort`。
+
+### 桌面开发模式
+
+```powershell
+npm run tauri:dev
+```
+
+Tauri 配置中的 `beforeDevCommand` 会执行 `npm run dev`，用于加载本地 Vite 页面。
+
+### 桌面生产打包
+
+```powershell
+npx tauri build
+```
+
+Tauri 版本号直接从仓库根目录 `version.json` 读取。打包前会执行 `npm run build`；其中 `prebuild` 会自动同步版本号，`build-server.js` 会生成 `dist-server/`，复制后端代码、`scripts/`、`config.example/`、`version.json`，并在 `dist-server/` 内安装生产依赖。
 
 ---
 
@@ -74,7 +111,7 @@ cd omnidev
 
 所有个人定制化配置均存放在 `config/` 目录中（由 `config.example/` 初始化生成）：
 
-- **`config/app.json`** — 端口、大盘标题、项目级 `preset` 凭证注入预设与环境变量映射规则、脚本映射
+- **`config/app.json`** — 端口、大盘标题、关闭偏好、更新源、自动检查更新等全局设置
 - **`config/projects.json`** — 已登记项目清单及当前激活项 `activeProjectId`（含本机**真实物理绝对路径**）
 - **`config/projects/<id>/ssh.json`** — 该项目专属的远程 SSH 连接信息（**按项目隔离**）
 - **`config/vault.json`** — AES 加密后的凭证密文保险库（密码 / Cookie / Token 的密文，自动生成）
@@ -88,12 +125,58 @@ cd omnidev
 
 ---
 
-## 🛡️ 四大安全防线
+## 🚢 发布与更新
+
+版本号采用单一入口：只手动修改仓库根目录 [version.json](version.json)。
+
+```json
+{
+  "version": "0.1.1",
+  "changelog": "优化了一下问题",
+  "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe"
+}
+```
+
+`version.json` 会驱动以下位置：
+
+- `package.json.version`
+- `package-lock.json` 根版本
+- `src-tauri/tauri.conf.json.version`（直接指向 `../version.json`，支持 `npx tauri build`）
+- `src-tauri/Cargo.toml` 的 `package.version`
+- `update.json.version`、`update.json.changelog`、`update.json.downloadUrl`
+- 后端更新检查接口的当前版本
+
+常用命令：
+
+```powershell
+npm run version:sync   # 手动同步所有派生版本文件
+npm run version:check  # 校验所有版本号是否一致
+npx tauri build        # Tauri 打包；会读取 version.json，并在 beforeBuildCommand 中执行 npm run build
+```
+
+发布前检查：
+
+- 确认不会把 `config/`、`vault.json`、真实 SSH 信息、本机路径打入生产包。
+- 确认 `dist-server/config` 来源为 `config.example/`。
+- 确认 `update.json.downloadUrl` 指向本次 Release 的安装包。
+- 执行 `npm run version:check` 并确认版本号一致后再发布安装包。
+
+---
+
+## 🛡️ 安全设计与边界
 
 1. **物理闭环隔离**：后端服务仅向本机 `127.0.0.1` 环回口提供，封死外网/局域网扫描与未授权访问。
 2. **路径穿越根治**：环境标识在文件读写前经正则强清洗（仅允许 `a-z0-9_-`），物理杜绝 `../` 越权读写任意配置文件。
 3. **并发竞态防刷**：SSH 测试/连接/断开等异步操作配 UI 禁用锁 + 后端死链清理 + 退出竞态标志位，防高频点击引发长连接死锁。
 4. **凭证脱敏与 XSS 免疫**：敏感凭证 AES 加密落库、物理文件脱敏、接口返回二次脱敏；终端日志回显全程 Vue 安全插值，100% 禁用 `v-html`。
+
+注意事项：
+
+- 本项目面向本地开发环境，不应暴露到公网或局域网。
+- 后端接口默认用于本机控制台调用；如调整监听地址、代理或 CORS，需要重新评估访问控制。
+- Tauri 当前 CSP 配置为 `null`，如引入远程页面或第三方脚本，需要补充 CSP。
+- 更新下载依赖 `version.json.downloadUrlTemplate` 生成的 `update.json.downloadUrl`，发布方应保证下载地址可信。
+- AES 主密钥存放在用户目录，能保护配置文件泄漏场景，但不能抵御本机账户已被完全控制的场景。
 
 ---
 
@@ -112,6 +195,7 @@ OmniDev/
 ├── scripts/auto_login.py   # Python + Playwright 自动登录脚本
 ├── src-tauri/              # Tauri 2 桌面外壳（Rust，可选）
 ├── config.example/         # 配置模板（提交，供初始化）
+├── version.json            # 唯一人工维护的版本与更新信息入口
 └── setup.ps1               # 一键初始化脚本
 ```
 
@@ -125,7 +209,7 @@ OmniDev/
 - `src/`、`server.js`、`server/`（前后端核心代码）
 - `src-tauri/`、`scripts/`（桌面外壳与自动登录脚本）
 - `config.example/`（配置模板，**必须提交**，供新开发参考）
-- `setup.ps1`、`package.json`、`package-lock.json`、`vite.config.js`、`.gitignore`、`README.md`、`技术文档.md`
+- `setup.ps1`、`package.json`、`package-lock.json`、`vite.config.js`、`version.json`、`update.json`、`.gitignore`、`README.md`、`技术文档.md`
 
 **❌ 禁止提交（个人私有）**
 - ❌ `config/`（SSH 密码、本地绝对路径、凭证密文等）

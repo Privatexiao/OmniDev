@@ -1,14 +1,18 @@
 {
   "name": "omnidev",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
+    "version:sync": "node scripts/sync-version.js",
+    "version:check": "node scripts/check-version.js",
     "dev": "powershell -NoProfile -Command \"Start-Process powershell -WorkingDirectory $PWD.Path -ArgumentList '-NoExit','-Command','chcp 65001; node server.js'\" && vite",
     "server": "node server.js",
+    "prebuild": "npm run version:sync",
     "build": "node build-server.js && vite build",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
+    "pretauri:build": "npm run version:sync",
     "tauri:build": "tauri build"
   },
   "dependencies": {

@@ -4,5 +4,10 @@
   "defaultPort": 8080,
   "maxPort": 8150,
   "serverPort": 3300,
-  "frontendPort": 3000
+  "frontendPort": 3000,
+  "primarySubproject": "manage",
+  "killServerOnClose": true,
+  "updateUrl": "",
+  "autoCheckUpdate": true,
+  "excludeDirs": []
 }
