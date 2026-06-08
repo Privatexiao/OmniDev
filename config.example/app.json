@@ -1,0 +1,8 @@
+{
+  "appName": "Dev Assistant",
+  "appDescription": "多环境一键启停与快捷登录控制台",
+  "defaultPort": 8080,
+  "maxPort": 8150,
+  "serverPort": 3300,
+  "frontendPort": 3000
+}

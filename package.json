@@ -1,0 +1,25 @@
+{
+  "name": "omnidev",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "powershell -NoProfile -Command \"Start-Process powershell -WorkingDirectory $PWD.Path -ArgumentList '-NoExit','-Command','chcp 65001; node server.js'\" && vite",
+    "server": "node server.js",
+    "build": "node build-server.js && vite build",
+    "preview": "vite preview",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ssh2": "^1.17.0",
+    "vue": "^3.3.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@vitejs/plugin-vue": "^4.2.3",
+    "vite": "^4.4.5"
+  }
+}

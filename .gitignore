@@ -1,0 +1,32 @@
+# 依赖目录
+node_modules/
+
+# 编译与构建输出
+dist/
+dist-server/
+src-tauri/target/
+
+# 本地环境变量和本地配置文件
+*.local
+.env*.local
+
+# 编辑器与系统临时文件
+.vscode/
+.DS_Store
+*.sw?
+
+# 本地私有配置文件 (SSH 凭证 & 登录 Cookies)
+config/
+config/**/*.json
+
+# 示例配置文件必须纳入版本管理，供新用户 clone 后参考使用
+!config.example/
+!config.example/**
+
+# 日志目录与日志文件
+logs/
+*.log
+
+# AI 助手目录与锁文件
+.agents/
+skills-lock.json

@@ -1,0 +1,18 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+# PowerShell 脚本必须带 UTF-8 BOM：Windows PowerShell 5.1 在简体中文系统下
+# 默认按 GBK(936) 解析无 BOM 的 .ps1，会导致中文乱码与伪语法错误。
+[*.ps1]
+charset = utf-8-bom
+end_of_line = crlf
