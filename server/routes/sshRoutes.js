@@ -3,6 +3,9 @@
  * @description SSH 全局连接与分支管理 API 路由。提供远程分支查询、重置检出、手动断开和全局凭证修改等服务。
  */
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { CONFIG_DIR, PROJECTS_FILE_PATH } from '../config/pathConfig.js';
 import {
   getGlobalSSHConfig,
   saveGlobalSSHConfig,
@@ -18,6 +21,43 @@ import { writeLog } from '../services/logService.js';
 import { currentEnv } from '../services/processService.js';
 
 const router = express.Router();
+
+// 获取所有已记录的项目历史 SSH 配置，实现一键复用
+router.get('/api/ssh/history', (req, res) => {
+  try {
+    const historyList = [];
+    if (fs.existsSync(PROJECTS_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(PROJECTS_FILE_PATH, 'utf-8'));
+      const projectsList = data.projects || [];
+      
+      for (const proj of projectsList) {
+        if (!proj.id || !proj.name) continue;
+        const sshPath = path.join(CONFIG_DIR, 'projects', proj.id, 'ssh.json');
+        if (fs.existsSync(sshPath)) {
+          try {
+            const sshConfig = JSON.parse(fs.readFileSync(sshPath, 'utf-8'));
+            if (sshConfig && sshConfig.host && sshConfig.username) {
+              historyList.push({
+                projectId: proj.id,
+                projectName: proj.name,
+                host: sshConfig.host,
+                port: sshConfig.port || 22,
+                username: sshConfig.username,
+                password: sshConfig.password || '',
+                remote_path: sshConfig.remote_path || ''
+              });
+            }
+          } catch (e) {
+            console.error(`[DevAssistant] 读取项目 [${proj.name}] SSH 配置失败:`, e.message);
+          }
+        }
+      }
+    }
+    res.json({ success: true, history: historyList });
+  } catch (err) {
+    res.status(500).json({ error: '获取历史 SSH 配置失败: ' + err.message });
+  }
+});
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
@@ -73,7 +113,7 @@ router.post('/api/ssh/checkout', async (req, res) => {
     writeLog(`开始在远程开发服务器上执行分支重置、干净拉取并检出切换至分支 [${branch}]...`, env, 'Remote SSH', 'remote');
     
     // 执行一键 git checkout . + git clean -df + git pull + git checkout 加输入的分支进行强力干净切换
-    const cmd = `cd ${shellQuote(remoteEnvPath)} && git checkout . && git clean -df && git pull && git checkout ${shellQuote(branch)}`;
+    const cmd = `cd ${shellQuote(remoteEnvPath)} && git checkout . && git clean -df && (git checkout master || git checkout main) && git pull && git checkout ${shellQuote(branch)}`;
     const sshRes = await runRemoteCommand(sshConfig, cmd, env);
 
     if (sshRes.code !== 0) {

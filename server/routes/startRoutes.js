@@ -46,6 +46,31 @@ function resolveNpmRunCommand(targetWorkingDir, envName) {
   }
 }
 
+function applyPortArgument(runCommand, assignedPort) {
+  const normalizedCommand = String(runCommand || '').trim();
+  if (!normalizedCommand) return normalizedCommand;
+
+  // 显式端口参数的优先级高于 Vite/Vue CLI 项目内部默认配置。
+  if (/(^|\s)--port(?:=|\s+)\d+/i.test(normalizedCommand)) {
+    return normalizedCommand.replace(/(^|\s)--port(?:=|\s+)\d+/ig, `$1--port ${assignedPort}`);
+  }
+
+  if (/\b(?:npm|pnpm)(?:\.cmd)?\s+run\s+/i.test(normalizedCommand)) {
+    const separator = /\s--\s/.test(normalizedCommand) ? '' : ' --';
+    return `${normalizedCommand}${separator} --port ${assignedPort}`;
+  }
+
+  return `${normalizedCommand} --port ${assignedPort}`;
+}
+
+function normalizeNodeVersion(version) {
+  const normalized = String(version || '').trim().replace(/^v/i, '');
+  if (!/^\d+(?:\.\d+){0,2}$/.test(normalized)) {
+    throw new Error(`Node 版本格式非法: ${version || '<empty>'}`);
+  }
+  return normalized;
+}
+
 /**
  * 跨平台本地开发服务启动执行器。
  * 支持：
@@ -58,7 +83,7 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
   const isMac = process.platform === 'darwin';
 
   // 🚀 智能探测子项目所要求的 Node 版本
-  let nodeVersion = customNodeVersion ? String(customNodeVersion).trim() : null;
+  let nodeVersion = customNodeVersion ? normalizeNodeVersion(customNodeVersion) : null;
   
   if (!nodeVersion) {
     try {
@@ -106,8 +131,12 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
   }
 
   if (nodeVersion) {
-    writeLog(`[NodeSwitch] 🚀 检测到当前子项目要求使用 Node 版本 [${nodeVersion}]，正在启动 fnm 运行沙箱进行自适应切换`, envName, 'System');
+    writeLog(`[NodeSwitch] 🚀 强制使用 Node 版本 [${nodeVersion}] 启动；版本不存在或切换失败时不会降级到系统 Node`, envName, 'System');
   }
+
+  const versionedRunCommand = nodeVersion
+    ? `fnm exec --using=${nodeVersion} -- ${runCommand}`
+    : runCommand;
 
   const mergedEnv = {
     ...process.env,
@@ -121,10 +150,7 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
       .map(([key, val]) => `$env:${key}='${val.replace(/'/g, "''")}'`)
       .join('; ');
 
-    // 🚀 在 PowerShell 中前置 fnm use 并开启 quiet 静默模式以彻底消除 ANSI 颜色控制码乱码
-    const fnmPrefix = nodeVersion ? `try { fnm use ${nodeVersion} --log-level quiet } catch {}; ` : '';
-
-    const envCommand = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${fnmPrefix}${powershellEnvInjections ? powershellEnvInjections + '; ' : ''}${runCommand} | ForEach-Object { Write-Host $_; $_ } | Out-File -FilePath '${logFilePath}' -Encoding utf8 -Append; Read-Host '----------------------------------------\n[OmniDev] 服务已停止或运行结束，请检查上方日志。按回车键(Enter)关闭此窗口'`;
+    const envCommand = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${powershellEnvInjections ? powershellEnvInjections + '; ' : ''}${versionedRunCommand} 2>&1 | ForEach-Object { Write-Host $_; $_ } | Out-File -FilePath '${logFilePath}' -Encoding utf8 -Append; Read-Host '----------------------------------------\n[OmniDev] 服务已停止或运行结束，请检查上方日志。按回车键(Enter)关闭此窗口'`;
     const escapedEnvCommand = envCommand.replace(/\$/g, '`$');
 
     return spawn('powershell.exe', [
@@ -140,12 +166,9 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
       .map(([key, val]) => `${key}=${JSON.stringify(val)}`)
       .join(' ');
 
-    // 🚀 在 sh/bash 中前置 fnm use 并开启 quiet 静默模式以彻底消除 ANSI 颜色控制码乱码
-    const fnmPrefix = nodeVersion ? `(fnm use ${nodeVersion} --log-level quiet || true) && ` : '';
-
     const appleScriptCmd = `tell application "Terminal"
       activate
-      do script "cd ${JSON.stringify(targetWorkingDir)} && ${fnmPrefix}env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${runCommand} 2>&1 | tee ${JSON.stringify(logFilePath)}; echo '----------------------------------------'; echo '[OmniDev] 服务已运行结束。按回车键关闭此窗口'; read"
+      do script "cd ${JSON.stringify(targetWorkingDir)} && env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${versionedRunCommand} 2>&1 | tee ${JSON.stringify(logFilePath)}; echo '----------------------------------------'; echo '[OmniDev] 服务已运行结束。按回车键关闭此窗口'; read"
     end tell`;
 
     exec(`osascript -e ${JSON.stringify(appleScriptCmd)}`, (err) => {
@@ -155,7 +178,7 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
     });
 
     // 同时启动一个静默后台子进程，方便 OmniDev 控制台强行杀死与跟踪运行状态
-    return spawn('/bin/sh', ['-c', `exec ${fnmPrefix}env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${runCommand} >> ${JSON.stringify(logFilePath)} 2>&1`], {
+    return spawn('/bin/sh', ['-c', `exec env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${versionedRunCommand} >> ${JSON.stringify(logFilePath)} 2>&1`], {
       cwd: targetWorkingDir,
       env: mergedEnv
     });
@@ -165,10 +188,7 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
       .map(([key, val]) => `${key}=${JSON.stringify(val)}`)
       .join(' ');
 
-    // 🚀 在 sh/bash 中前置 fnm use 并开启 quiet 静默模式以彻底消除 ANSI 颜色控制码乱码
-    const fnmPrefix = nodeVersion ? `(fnm use ${nodeVersion} --log-level quiet || true) && ` : '';
-    
-    return spawn('/bin/sh', ['-c', `exec ${fnmPrefix}env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${runCommand} >> ${JSON.stringify(logFilePath)} 2>&1`], {
+    return spawn('/bin/sh', ['-c', `exec env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${versionedRunCommand} >> ${JSON.stringify(logFilePath)} 2>&1`], {
       cwd: targetWorkingDir,
       env: mergedEnv
     });
@@ -332,6 +352,8 @@ router.post('/api/start', async (req, res) => {
       runCommand = resolveNpmRunCommand(targetWorkingDir, envName);
       writeLog(`启动脚本自动选择: ${runCommand}`, envName, 'System');
     }
+    runCommand = applyPortArgument(runCommand, assignedPort);
+    writeLog(`启动脚本已显式绑定端口: ${runCommand}`, envName, 'System');
 
     // 🚀 跨平台执行命令拉起，彻底剥离 .ps1，在多 OS 下自动分配适配的运行逻辑
     const childProc = runLocalCommandCrossPlatform(

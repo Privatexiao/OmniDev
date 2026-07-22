@@ -1,6 +1,17 @@
 <script setup>
+/**
+ * @file EnvModal.vue
+ * @description 环境配置登记与编辑模态框组件，支持录入环境标识、自定义开发启动命令、管理多平台免密凭证结构以及配置一键线上登录参数
+ */
 import { ref, watch, computed } from 'vue'
 
+
+const props = defineProps({
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const emit = defineEmits(['success', 'message'])
 
@@ -22,6 +33,7 @@ const createEmptyEnvForm = () => ({
   remote_dir: '',
   credentials: [],
   local_port: '',
+  local_login_path: '',
   node_version: '16.17.0',
   start_cmd: '',
   login_url: '',
@@ -59,6 +71,7 @@ const show = (mode, name, config) => {
       remote_dir: config.remote_dir || '',
       credentials: normalizeCredentialFields(config.credentials ? JSON.parse(JSON.stringify(config.credentials)) : []),
       local_port: config.local_port || '',
+      local_login_path: config.local_login_path || '',
       node_version: config.node_version || '',
       start_cmd: config.start_cmd || '',
       login_url: config.login_url || '',
@@ -68,7 +81,7 @@ const show = (mode, name, config) => {
       disable_branch: !!config.disable_branch,
       disable_start: !!config.disable_start
     }
-    // 自动登录配置如果有内容不为空直接展开即可
+    // 一键登录配置如果有内容不为空直接展开即可
     if (envForm.value.login_url || envForm.value.online_username || envForm.value.online_password) {
       showAutoLoginSettings.value = true
     }
@@ -81,6 +94,18 @@ const show = (mode, name, config) => {
 
 const hide = () => { visible.value = false }
 
+const handleOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    hide()
+  }
+}
+
+const handleCredentialFieldOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    showCredentialFieldModal.value = false
+  }
+}
+
 const activeCredentialFields = computed(() =>
   Array.isArray(envForm.value.credentials) ? envForm.value.credentials : normalizeCredentialFields(envForm.value.credentials)
 )
@@ -90,14 +115,15 @@ const normalizeCredentialFields = (raw) => {
     return raw.filter(item => item && item.key).map(item => ({
       key: String(item.key || '').trim(),
       value: item.value || '',
-      inject_type: item.inject_type || 'cookie'
+      inject_type: item.inject_type || 'cookie',
+      enabled: item.enabled !== false
     }))
   }
   return Object.entries(raw || {}).map(([key, val]) => {
     if (val && typeof val === 'object' && 'key' in val) {
-      return { key: String(val.key || '').trim(), value: val.value || '', inject_type: val.inject_type || 'cookie' }
+      return { key: String(val.key || '').trim(), value: val.value || '', inject_type: val.inject_type || 'cookie', enabled: val.enabled !== false }
     }
-    return { key: String(key || '').trim(), value: val || '', inject_type: 'cookie' }
+    return { key: String(key || '').trim(), value: val || '', inject_type: 'cookie', enabled: true }
   }).filter(item => item && item.key)
 }
 
@@ -115,7 +141,8 @@ const addCredentialField = () => {
   fields.push({
     key: cleanName,
     value: credentialFieldForm.value.value || '',
-    inject_type: credentialFieldForm.value.inject_type || 'cookie'
+    inject_type: credentialFieldForm.value.inject_type || 'cookie',
+    enabled: true
   })
   envForm.value.credentials = fields
   // 🚀 每次点击确定成功新增后，主动清空已填写的内容以备下次录入
@@ -190,7 +217,7 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
 </script>
 
 <template>
-  <div class="modal-overlay" v-if="visible" @click.self="hide">
+  <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content env-modal-content animate-zoom">
       <div class="modal-header">
         <h3>{{ envModalType === 'edit' ? '✏️ 修改环境配置' : '➕ 新增环境配置' }}</h3>
@@ -198,8 +225,7 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
       </div>
       <div class="modal-body">
         <div class="form-section">
-          <h4 class="form-section-title">🔑 基本配置</h4>
-
+          <h4 class="form-section-title">🔑 基础配置</h4>
           <div class="form-grid">
             <div class="form-group">
               <label>环境标识 (英文短名)</label>
@@ -221,32 +247,30 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
               <label>线上地址</label>
               <input type="text" v-model="envForm.VUE_DEV_HOST" placeholder="可选，例如: http://dev.example.com" class="form-control" />
             </div>
+          </div>
+        </div>
 
+        <div class="form-section">
+          <h4 class="form-section-title">💻 本地开发与登录凭证配置 (可选)</h4>
+          <div class="form-grid">
             <div class="form-group">
-              <label>本地开发端口 (可选)</label>
-              <input type="number" v-model="envForm.local_port" placeholder="可选，自行启动环境填此端口以自动识别" class="form-control" />
+              <label>本地开发端口</label>
+              <input type="number" v-model="envForm.local_port" placeholder="不填自动分配,填写自动识别环境是否启动" class="form-control" />
             </div>
 
             <div class="form-group">
-              <label>指定 Node 版本 (可选)</label>
-              <input type="text" v-model="envForm.node_version" placeholder="例如: 16.17.0" class="form-control" />
+              <label>本地登录路径 (域名/h5/dist/#/home)</label>
+              <input type="text" v-model="envForm.local_login_path" placeholder="默认：域名/#/" class="form-control" />
             </div>
 
             <div class="form-group">
-              <label>远程部署目录 (用于 Git 分支)</label>
-              <input type="text" v-model="envForm.remote_dir" placeholder="可选，例如: /var/www/****" class="form-control" />
+              <label>本地环境启动命令</label>
+              <input type="text" v-model="envForm.start_cmd" placeholder="默认：npm run dev" class="form-control" />
             </div>
 
             <div class="form-group">
-              <label>本地环境启动命令 (可选)</label>
-              <input type="text" v-model="envForm.start_cmd" placeholder="可选，例如: npm run dev" class="form-control" />
-            </div>
-
-            <div class="checkbox-row">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="envForm.disable_branch" />
-                <span class="checkbox-text">🔒 禁用 Git 远程分支操作（如无 SSH 权限的线上环境）</span>
-              </label>
+              <label>指定 Node 版本</label>
+              <input type="text" v-model="envForm.node_version" placeholder="默认：16.17.0" class="form-control" />
             </div>
 
             <div class="checkbox-row">
@@ -256,33 +280,56 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
               </label>
             </div>
           </div>
+
+          <!-- 登录凭证 -->
+          <div class="credential-subsection" style="margin-top: 16px;">
+            <h5 class="form-subsection-title cred-title" style="margin-bottom: 10px; font-size: 13.5px; font-weight: 700; color: var(--text);">
+              <span>🔐 登录凭证 (Cookie / Token)</span>
+              <button type="button" class="btn-add-cred" @click="showCredentialFieldModal = true">+ 添加字段</button>
+            </h5>
+            <div class="credential-tip">
+              <span class="tip-icon">💡</span>
+              <span class="tip-text">部分项目在启动开发服务时会自动打开浏览器，此时由于安全策略限制无法写入登录凭证。请手动点击列表中的 <b>「💻 登录本地端口」</b> 按钮，以确保凭证可以正常写入并免密登录。</span>
+            </div>
+
+            <div class="credential-fields-list" v-if="activeCredentialFields.length > 0">
+              <div v-for="field in activeCredentialFields" :key="field.key" class="cred-row">
+                <div class="cred-head">
+                  <input type="checkbox" v-model="field.enabled" class="cred-enabled-checkbox" title="启用/禁用此凭证字段" @change="handleCustomInput" />
+                  <span class="cred-key" :class="{ 'cred-disabled-text': field.enabled === false }">{{ field.key }}</span>
+                  <span class="cred-tag" :class="[field.inject_type, { 'cred-disabled-tag': field.enabled === false }]">{{ field.inject_type }}</span>
+                  <button class="cred-del" @click="removeCredentialField(field.key)" title="移除此字段">✕</button>
+                </div>
+                <input v-model="field.value" type="text" :disabled="field.enabled === false" :placeholder="field.enabled === false ? '该凭证字段已禁用' : `请输入 ${field.key} 的实际值...`" class="form-control cred-input" :class="{ 'cred-input-disabled': field.enabled === false }" @input="handleCustomInput" />
+              </div>
+            </div>
+            <div class="empty-credential-hint" v-else>
+              <p>暂无凭证字段，点击右上角「+ 添加字段」添加。</p>
+            </div>
+          </div>
         </div>
 
         <div class="form-section">
-          <h4 class="form-section-title cred-title">
-            <span>🔐 登录凭证 (Cookie / Token)</span>
-            <button type="button" class="btn-add-cred" @click="showCredentialFieldModal = true">+ 添加字段</button>
-          </h4>
-
-          <div class="credential-fields-list" v-if="activeCredentialFields.length > 0">
-            <div v-for="field in activeCredentialFields" :key="field.key" class="cred-row">
-              <div class="cred-head">
-                <span class="cred-key">{{ field.key }}</span>
-                <span class="cred-tag" :class="field.inject_type">{{ field.inject_type }}</span>
-                <button class="cred-del" @click="removeCredentialField(field.key)" title="移除此字段">✕</button>
-              </div>
-              <input v-model="field.value" type="text" :placeholder="`请输入 ${field.key} 的实际值...`" class="form-control cred-input" @input="handleCustomInput" />
+          <h4 class="form-section-title">🚀 远程部署配置</h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>远程部署目录 (用于 Git 分支)</label>
+              <input type="text" v-model="envForm.remote_dir" placeholder="可选，例如: /var/www/****" class="form-control" />
             </div>
-          </div>
-          <div class="empty-credential-hint" v-else>
-            <p>暂无凭证字段，点击右上角「+ 添加字段」添加。</p>
+
+            <div class="checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="envForm.disable_branch" />
+                <span class="checkbox-text">🔒 禁用 Git 远程分支操作（如无 SSH 权限 of 线上环境）</span>
+              </label>
+            </div>
           </div>
         </div>
 
 
         <div class="form-section">
           <h4 class="form-section-title">
-            <span>🌐 自动登录配置</span>
+            <span>🌐 一键登录配置</span>
             <label class="section-toggle-label" @click="showAutoLoginSettings = !showAutoLoginSettings">
               <span class="toggle-text">{{ showAutoLoginSettings ? ' ▲' : ' ▼' }}</span>
             </label>
@@ -326,7 +373,7 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
     </div>
 
     <!-- 自定义凭证字段弹出层 -->
-    <div class="modal-overlay" v-if="showCredentialFieldModal" @click.self="showCredentialFieldModal = false">
+    <div class="modal-overlay" v-if="showCredentialFieldModal" @click.self="handleCredentialFieldOverlayClick">
       <div class="glass-card modal-content credential-field-modal animate-zoom">
         <div class="modal-header">
           <h3>➕ 新增自定义凭证字段</h3>
@@ -464,6 +511,30 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
   width: 100%;
 }
 
+.cred-enabled-checkbox {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.cred-disabled-text {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.cred-disabled-tag {
+  opacity: 0.5;
+  background: rgba(120, 120, 120, 0.12) !important;
+  color: var(--text-muted) !important;
+}
+
+.cred-input-disabled {
+  opacity: 0.6;
+  background-color: rgba(120, 120, 120, 0.05) !important;
+  cursor: not-allowed;
+}
+
 .empty-credential-hint {
   padding: 16px;
   text-align: center;
@@ -534,5 +605,31 @@ defineExpose({ show, hide, visible, showCredentialFieldModal })
 .checkbox-text {
   font-size: 12.5px;
   color: var(--text);
+}
+
+/* 凭证提示小贴士样式 */
+.credential-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px dashed rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.credential-tip .tip-icon {
+  font-size: 14px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.credential-tip b {
+  color: var(--primary, #6366f1);
+  font-weight: 700;
 }
 </style>

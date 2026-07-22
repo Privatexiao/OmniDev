@@ -2,6 +2,7 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
 use tauri::Emitter;
+use tauri_plugin_updater::UpdaterExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,6 +15,8 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
 
       // 创建托盘菜单项
       let quit_i = MenuItemBuilder::new("退出").id("quit").build(app)?;
@@ -30,6 +33,7 @@ pub fn run() {
         let _tray = TrayIconBuilder::new()
           .icon(icon.clone())
           .menu(&menu)
+          .show_menu_on_left_click(false)
           .tooltip("OmniDev")
           .on_menu_event(|app, event| match event.id().as_ref() {
             "quit" => {
@@ -43,6 +47,8 @@ pub fn run() {
             "show" => {
               if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.center();
                 let _ = window.set_focus();
               }
             }
@@ -58,6 +64,8 @@ pub fn run() {
               let app = tray.app_handle();
               if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.center();
                 let _ = window.set_focus();
               }
             }
@@ -77,7 +85,8 @@ pub fn run() {
       start_backend_server,
       get_backend_port,
       kill_port_process,
-      save_server_port
+      save_server_port,
+      install_app_update
     ])
     .on_window_event(|window, event| {
       if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -94,6 +103,66 @@ pub fn run() {
       }
       _ => {}
     });
+}
+
+/// 由 Tauri 官方 Updater 完成签名校验、下载、安装与重启。
+#[tauri::command]
+async fn install_app_update(
+  app_handle: tauri::AppHandle,
+  update_url: Option<String>,
+) -> Result<String, String> {
+  let shutdown_handle = app_handle.clone();
+  let mut updater_builder = app_handle
+    .updater_builder()
+    .on_before_exit(move || shutdown_node_server_raw(&shutdown_handle));
+
+  if let Some(endpoint_url) = update_url.filter(|value| !value.trim().is_empty()) {
+    if !endpoint_url.starts_with("https://") {
+      return Err("生产更新源必须使用 HTTPS".to_string());
+    }
+    let endpoint = endpoint_url
+      .parse()
+      .map_err(|err| format!("更新源 URL 无效: {}", err))?;
+    updater_builder = updater_builder
+      .endpoints(vec![endpoint])
+      .map_err(|err| format!("设置更新源失败: {}", err))?;
+  }
+
+  let updater = updater_builder
+    .build()
+    .map_err(|err| format!("初始化更新器失败: {}", err))?;
+  let update = updater
+    .check()
+    .await
+    .map_err(|err| format!("检查签名更新失败: {}", err))?
+    .ok_or_else(|| "未检测到可安装的新版本".to_string())?;
+
+  let progress_handle = app_handle.clone();
+  let finished_handle = app_handle.clone();
+  let mut downloaded = 0usize;
+  update
+    .download_and_install(
+      move |chunk_length, content_length| {
+        downloaded += chunk_length;
+        let _ = progress_handle.emit("app-update-progress", serde_json::json!({
+          "event": "progress",
+          "downloaded": downloaded,
+          "contentLength": content_length
+        }));
+      },
+      move || {
+        let _ = finished_handle.emit("app-update-progress", serde_json::json!({
+          "event": "finished"
+        }));
+      },
+    )
+    .await
+    .map_err(|err| format!("更新包校验或安装失败: {}", err))?;
+
+  let _ = app_handle.emit("app-update-progress", serde_json::json!({
+    "event": "installed"
+  }));
+  app_handle.restart();
 }
 
 /// 🚀 内部逻辑：一键启动 Node.js 后端服务 (支持 AppHandle 动态寻址资源)

@@ -1,20 +1,26 @@
 <script setup>
+/**
+ * @file index.vue
+ * @description 开发控制台主入口组件，整合项目切换、环境卡片列表、终端面板、系统设置、应用静默升级状态及窗口关闭行为
+ */
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import Modal from '../../components/Modal.vue'
-import ThemeSwitcher from './components/ThemeSwitcher.vue'
-import StatusBadges from './components/StatusBadges.vue'
+import ThemeSwitcher from './components/common/ThemeSwitcher.vue'
+import StatusBadges from './components/common/StatusBadges.vue'
 import ServerCard from './components/ServerCard.vue'
-import EnvCard from './components/EnvCard.vue'
-import TerminalPanel from './components/TerminalPanel.vue'
+import EnvCard from './components/env/EnvCard.vue'
+import TerminalPanel from './components/terminal/TerminalPanel.vue'
 import Message from '../../components/Message.vue'
 import { loginAdapters } from '../../utils/loginAdapters'
 import { copyToClipboard, openExternal, prefersDarkScheme, watchColorScheme } from '../../utils/platform'
-import ProjectModal from './components/ProjectModal.vue'
-import CloseConfirmModal from './components/CloseConfirmModal.vue'
-import EnvDetailModal from './components/EnvDetailModal.vue'
-import EnvModal from './components/EnvModal.vue'
-import SettingsModal from './components/SettingsModal.vue'
-import PortOccupiedModal from './components/PortOccupiedModal.vue'
+import ProjectModal from './components/project/ProjectModal.vue'
+import CloseConfirmModal from './components/common/CloseConfirmModal.vue'
+import EnvDetailModal from './components/env/EnvDetailModal.vue'
+import EnvModal from './components/env/EnvModal.vue'
+import SettingsModal from './components/settings/SettingsModal.vue'
+import PortOccupiedModal from './components/common/PortOccupiedModal.vue'
+import ProjectTabs from './components/project/ProjectTabs.vue'
+import AppUpdater from './components/AppUpdater.vue'
+import { useAppUpdate } from './composables/useAppUpdate'
 
 // 核心数据状态
 const envs = ref({})
@@ -46,24 +52,13 @@ const anyLocalServiceRunning = computed(() => {
 
 // 🚀 全局跨项目正在运行的本地服务总揽状态
 const globalRunningServices = ref([])
+const stoppingEnvName = ref('')
+const stopControlsLocked = ref(false)
+let stopUnlockTimer = null
 
 // 🚀 多项目多分支管理状态
 const projects = ref([])
 const activeProjectId = ref('')
-const hoveredProjectId = ref(null) // 🚀 鼠标当前真正悬停的项目 ID
-let projectHoverTimer = null // 🚀 悬停延迟定时器
-
-const handleProjectMouseEnter = (projectId) => {
-  if (projectHoverTimer) clearTimeout(projectHoverTimer)
-  projectHoverTimer = setTimeout(() => {
-    hoveredProjectId.value = projectId
-  }, 500) // 💡 延迟 1 秒
-}
-
-const handleProjectMouseLeave = () => {
-  if (projectHoverTimer) clearTimeout(projectHoverTimer)
-  hoveredProjectId.value = null
-}
 // 🚀 系统设置唤起与数据更新回调
 const openSettingsModal = () => {
   settingsModalRef.value?.show()
@@ -174,7 +169,8 @@ const normalizeCredentialFields = (raw) => {
       .map(item => ({
         key: String(item.key || '').trim(),
         value: item.value || '',
-        inject_type: item.inject_type || 'cookie'
+        inject_type: item.inject_type || 'cookie',
+        enabled: item.enabled !== false
       }))
   }
   // 智能自愈：兼容以前的对象 entries 脏数据结构 {"0": {"key": "corpid", "value": "964"}}
@@ -183,14 +179,16 @@ const normalizeCredentialFields = (raw) => {
       return {
         key: String(val.key || '').trim(),
         value: val.value || '',
-        inject_type: val.inject_type || 'cookie'
+        inject_type: val.inject_type || 'cookie',
+        enabled: val.enabled !== false
       }
     }
     // 兜底以前的常规扁平键值对结构 {"corpid": "964"}
     return {
       key: String(key || '').trim(),
       value: val || '',
-      inject_type: 'cookie'
+      inject_type: 'cookie',
+      enabled: true
     }
   }).filter(item => item && item.key)
 }
@@ -377,7 +375,7 @@ const fetchEnvs = async () => {
         if (item && item.running) {
           globalRunningServices.value.push({
             projectName: activeProjName,
-            envName: displayName,
+            envName: name,
             port: item.port || null
           })
         }
@@ -420,7 +418,14 @@ const fetchEnvs = async () => {
     }
     
     // 手动触发一次 Vue 的响应式收集（以便视图得到最新状态响应）
-    envs.value = { ...currentEnvs }
+    // 3. 按照后端新返回的环境顺序，重建对象键的物理插入顺序，彻底隔离并纠正项目间环境排序
+    const orderedEnvs = {}
+    for (const key in newEnvs) {
+      if (currentEnvs[key]) {
+        orderedEnvs[key] = currentEnvs[key]
+      }
+    }
+    envs.value = orderedEnvs
 
     sshInfo.value = data.server_ssh || {}
     currentEnv.value = data.currentEnv
@@ -597,48 +602,111 @@ const startEnv = async (name) => {
 // 业务交互：安全关停本地服务进程 (精准强杀特定环境进程)
 const stopEnv = async (name) => {
   const displayName = name;
+  if (stopControlsLocked.value) return
+
+  stopControlsLocked.value = true
+  stoppingEnvName.value = displayName
   try {
     logs.value = `正在强行关闭本地服务环境 [${displayName}] 残留端口进程...\n`
-    await fetch('/api/stop', { 
-      method: 'POST', 
+    const res = await fetch('/api/stop', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ env: name })
     })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data.error || '停止本地服务失败')
+    }
     // 🚀 关停后刷新状态，物理熄灭卡片绿点与端口胶囊
     await fetchEnvs()
+    showMessage(data.message || `环境 [${displayName}] 已停止`, 'success')
   } catch (err) {
     console.error('停止失败:', err)
+    showMessage(`停止失败: ${err.message}`, 'error')
+  } finally {
+    stoppingEnvName.value = ''
+    if (stopUnlockTimer) clearTimeout(stopUnlockTimer)
+    // 条目移除后短暂保持锁定，避免连点落到下一个环境。
+    stopUnlockTimer = setTimeout(() => {
+      stopControlsLocked.value = false
+      stopUnlockTimer = null
+    }, 600)
   }
 }
 
 // 业务交互：基于插拔式通用动态适配器完成凭证注入，并一键跳转登录主开发系统或关联子项目
 const launchEnv = async (name, config, targetType = 'online') => {
   // 🤖 智能一键自动免密登录 (支持有头浏览器模拟填表登录，仅当目标为线上 online 时启用)
-  if (targetType === 'online' && config.login_url && config.online_username && config.online_password) {
+  const hasCredentials = normalizeCredentialFields(config.credentials)
+    .filter(c => c.enabled !== false)
+    .some(c => c.key)
+
+  const isOnlineAuto = targetType === 'online' && config.login_url && config.online_username && config.online_password
+  const isLocalWithCredentials = targetType === 'local' && hasCredentials
+
+  if (isOnlineAuto || isLocalWithCredentials) {
     try {
-      showMessage('🤖 正在启动浏览器...', 'success')
+      showMessage(isLocalWithCredentials ? '🤖 正在预注入登录凭证并拉起独立浏览器...' : '🤖 正在拉起一键登录浏览器...', 'success')
       const res = await fetch('/api/envs/autologin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ envKey: name })
+        body: JSON.stringify({ envKey: name, targetType })
       })
       const data = await res.json()
       if (res.ok) {
         showMessage(data.message || '正在拉起浏览器，请稍候...', 'success')
       } else {
-        showMessage(data.error || '拉起自动登录失败', 'error')
+        showMessage(data.error || '拉起一键登录失败', 'error')
       }
     } catch (err) {
-      showMessage(`自动登录失败: ${err.message}`, 'error')
+      showMessage(`一键登录失败: ${err.message}`, 'error')
     }
     return
   }
 
   // 降级兜底逻辑：常规 Cookie / localStorage / sessionStorage 免密跳转
   try {
-    const targetLink = (targetType === 'local' && config.running && config.port)
-      ? `http://localhost:${config.port}`
-      : '{{VUE_DEV_HOST}}';
+    let targetLink = '{{VUE_DEV_HOST}}';
+    if (targetType === 'local' && config.running && config.port) {
+      let subPath = config.local_login_path || '';
+      if (subPath) {
+        subPath = subPath.trim();
+        if (subPath.startsWith('http://') || subPath.startsWith('https://')) {
+          try {
+            const urlObj = new URL(subPath);
+            subPath = urlObj.pathname + urlObj.search + urlObj.hash;
+          } catch (e) {
+            subPath = subPath.replace(/^https?:\/\/[^\/]+/, '');
+          }
+        }
+        if (subPath && !subPath.startsWith('/')) {
+          const slashIdx = subPath.indexOf('/');
+          if (slashIdx > 0) {
+            const firstPart = subPath.substring(0, slashIdx);
+            if (!firstPart.includes('#')) {
+              subPath = subPath.substring(slashIdx);
+            }
+          }
+        }
+      }
+      if (!subPath) {
+        const devHost = config.VUE_DEV_HOST || '';
+        try {
+          if (devHost.startsWith('http://') || devHost.startsWith('https://')) {
+            const urlObj = new URL(devHost);
+            subPath = urlObj.pathname + urlObj.search + urlObj.hash;
+          } else if (devHost) {
+            subPath = devHost.startsWith('/') ? devHost : '/' + devHost;
+          }
+        } catch (e) {
+          subPath = '';
+        }
+      }
+      if (subPath && !subPath.startsWith('/')) {
+        subPath = '/' + subPath;
+      }
+      targetLink = `http://localhost:${config.port}${subPath}`;
+    }
 
     const activeConfig = {
       ...config,
@@ -682,7 +750,15 @@ const fetchAppConfig = async () => {
 
 // 🚀 全局模态弹窗滚动穿透自适应锁定机制（防止模态框开启时最外层 body 产生任何恶性滚动穿透）
 const isAnyModalOpen = computed(() => {
-  return settingsModalRef.value?.visible || false
+  return (
+    settingsModalRef.value?.visible ||
+    projectModalRef.value?.visible ||
+    closeConfirmModalRef.value?.visible ||
+    envDetailModalRef.value?.visible ||
+    envModalRef.value?.visible ||
+    portOccupiedModalRef.value?.visible ||
+    false
+  )
 })
 
 watch(isAnyModalOpen, (isOpen) => {
@@ -700,220 +776,21 @@ let envInterval = null
 let unlistenTauriClose = null
 let unlistenTauriExit = null
 
-// ==================== 自动检查更新模块 ====================
-const showUpdateBanner = ref(false)
-const latestUpdateInfo = ref(null)
-
-const autoCheckAppUpdate = async () => {
-  try {
-    if (!appConfig.value.updateUrl || appConfig.value.autoCheckUpdate === false) return
-
-    const res = await fetch('/api/system/check-update')
-    if (!res.ok) return
-    const data = await res.json()
-    if (data.success && data.hasUpdate) {
-      const ignoredVersion = localStorage.getItem('omnidev_ignored_version')
-      if (ignoredVersion !== data.latestVersion) {
-        latestUpdateInfo.value = data
-        showUpdateBanner.value = true
-      }
-    }
-  } catch (e) {
-    console.warn('[AutoUpdate] 自动检查更新失败:', e.message)
-  }
-}
-
-const handleIgnoreUpdate = () => {
-  if (latestUpdateInfo.value) {
-    localStorage.setItem('omnidev_ignored_version', latestUpdateInfo.value.latestVersion)
-  }
-  showUpdateBanner.value = false
-}
-
-const handleViewUpdate = () => {
-  showUpdateBanner.value = false
-  settingsModalRef.value?.show('about')
-}
-
-// ==================== 应用内静默下载与安全覆盖安装 ====================
-const downloadingUpdate = ref(false)
-const downloadPercent = ref(0)
-const downloadStatus = ref('idle') // 'idle' | 'downloading' | 'completed' | 'error'
-const downloadError = ref(null)
-const downloadFilePath = ref('')
-const showInstallConfirm = ref(false)
-const installingAndExiting = ref(false)
-let globalProgressTimer = null
-
-const installModalRef = ref(null)
-
-const pollDownloadProgress = async () => {
-  try {
-    const res = await fetch('/api/system/download-progress')
-    const data = await res.json()
-    downloadStatus.value = data.status
-    downloadPercent.value = data.percent
-    if (data.filePath) {
-      downloadFilePath.value = data.filePath
-    }
-    
-    if (data.status === 'completed') {
-      stopDownloadPolling()
-      downloadingUpdate.value = false
-      showInstallConfirm.value = true
-      nextTick(() => {
-        if (installModalRef.value) {
-          installModalRef.value.show()
-        }
-      })
-    } else if (data.status === 'error') {
-      stopDownloadPolling()
-      downloadingUpdate.value = false
-      downloadError.value = data.error || '下载异常中断'
-      showMessage(`下载失败: ${downloadError.value}`, 'error')
-    }
-  } catch (err) {
-    console.error('获取下载进度失败:', err)
-  }
-}
-
-const startDownloadPolling = () => {
-  if (globalProgressTimer) clearInterval(globalProgressTimer)
-  globalProgressTimer = setInterval(pollDownloadProgress, 500)
-}
-
-const stopDownloadPolling = () => {
-  if (globalProgressTimer) {
-    clearInterval(globalProgressTimer)
-    globalProgressTimer = null
-  }
-}
-
-const downloadNewVersion = async (url) => {
-  if (!url) {
-    showMessage('未提供下载链接', 'warning')
-    return
-  }
-  if (downloadingUpdate.value) return
-
-  downloadingUpdate.value = true
-  downloadPercent.value = 0
-  downloadStatus.value = 'downloading'
-  downloadError.value = null
-  
-  try {
-    const res = await fetch('/api/system/download-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        downloadUrl: url,
-        version: latestUpdateInfo.value?.latestVersion || ''
-      })
-    })
-    const data = await res.json()
-    if (res.ok && data.success) {
-      // showMessage('下载已在后台启动，关闭设置面板仍会继续下载...', 'success')
-      startDownloadPolling()
-    } else {
-      downloadingUpdate.value = false
-      showMessage(data.error || '无法启动后台下载', 'error')
-    }
-  } catch (err) {
-    downloadingUpdate.value = false
-    showMessage('启动下载失败: ' + err.message, 'error')
-  }
-}
-
-const confirmInstallAndExit = async () => {
-  if (installingAndExiting.value) return
-  installingAndExiting.value = true
-  try {
-    showMessage('正在唤醒安装向导...', 'info')
-    const res = await fetch('/api/system/install-and-exit', { method: 'POST' })
-    const data = await res.json()
-    if (res.ok && data.success) {
-      showMessage('拉起成功！主控端正在优雅关闭...', 'success')
-      if (installModalRef.value) installModalRef.value.hide()
-      setTimeout(() => {
-        if (window.__TAURI__) {
-          const win = window.__TAURI__.window.getCurrentWindow()
-          win.destroy()
-        } else {
-          window.close()
-        }
-      }, 1000)
-    } else {
-      installingAndExiting.value = false
-      showMessage(data.error || '拉起安装向导失败', 'error')
-    }
-  } catch (err) {
-    installingAndExiting.value = false
-    showMessage('呼叫后端安装程序失败: ' + err.message, 'error')
-  }
-}
-
-const handleInstallCancel = () => {
-  if (installModalRef.value) installModalRef.value.hide()
-}
-
-const openingTempFolder = ref(false)
-const openTempFolder = async () => {
-  if (openingTempFolder.value) return
-  openingTempFolder.value = true
-  try {
-    const res = await fetch('/api/system/open-temp-dir', { method: 'POST' })
-    const data = await res.json()
-    if (res.ok) {
-      showMessage(data.message || '已成功打开安装包所在文件夹', 'success')
-    } else {
-      showMessage(data.error || '打开文件夹失败', 'error')
-    }
-  } catch (err) {
-    showMessage('请求打开文件夹失败: ' + err.message, 'error')
-  } finally {
-    openingTempFolder.value = false
-  }
-}
-
-const copyInstallPath = async () => {
-  if (!downloadFilePath.value) return
-  try {
-    await navigator.clipboard.writeText(downloadFilePath.value)
-    showMessage('🚀 安装包物理路径已成功复制到剪贴板！', 'success')
-  } catch (err) {
-    showMessage('复制失败: ' + err.message, 'error')
-  }
-}
-
-const checkCurrentDownloadProgress = async () => {
-  try {
-    const res = await fetch('/api/system/download-progress')
-    const data = await res.json()
-    if (data && data.status === 'downloading') {
-      downloadingUpdate.value = true
-      downloadStatus.value = 'downloading'
-      downloadPercent.value = data.percent
-      if (data.filePath) {
-        downloadFilePath.value = data.filePath
-      }
-      startDownloadPolling()
-    } else if (data && data.status === 'completed') {
-      downloadStatus.value = 'completed'
-      downloadPercent.value = 100
-      if (data.filePath) {
-        downloadFilePath.value = data.filePath
-      }
-      showInstallConfirm.value = true
-      nextTick(() => {
-        if (installModalRef.value) {
-          installModalRef.value.show()
-        }
-      })
-    }
-  } catch (e) {
-    console.error('检查当前下载进度失败:', e)
-  }
-}
+// ==================== 自动检查与签名应用内更新逻辑 (Composable) ====================
+const {
+  showUpdateBanner,
+  latestUpdateInfo,
+  downloadingUpdate,
+  downloadPercent,
+  downloadStatus,
+  downloadError,
+  showInstallConfirm,
+  installingAndExiting,
+  autoCheckAppUpdate,
+  downloadNewVersion,
+  confirmInstallAndExit,
+  stopDownloadPolling
+} = useAppUpdate(appConfig, showMessage)
 
 
 // 🚀 开启大盘环境列表温和的后台静默轮询 (5秒一次，配合后端 0ms 零损耗探针完美实现状态自动亮起)
@@ -996,15 +873,13 @@ onMounted(async () => {
     autoCheckAppUpdate()
   }, 3000)
 
-  // 💡 检查是否有正在后台进行或已就绪的下载任务
-  checkCurrentDownloadProgress()
 })
 
 // 🚀 ESC 键全局拦截：按优先级关闭最上层弹窗（子弹窗优先于父弹窗）
 const handleEscClose = (e) => {
   if (e.key !== 'Escape') return
   // 如果有覆盖安装确认弹窗正在显示，ESC键也应按需拦截
-  if (installModalRef.value?.visible) { handleInstallCancel(); return }
+  if (showInstallConfirm.value) { showInstallConfirm.value = false; return }
   // 子弹窗最优先关闭
   if (envModalRef.value?.showCredentialFieldModal) { envModalRef.value.showCredentialFieldModal = false; return }
   if (closeConfirmModalRef.value?.visible) { closeConfirmModalRef.value.hide(); return }
@@ -1021,10 +896,24 @@ const handleEscClose = (e) => {
   if (projectModalRef.value?.visible) { projectModalRef.value.hide(); return }
 }
 
+const handleLaunchLocalFromBadge = (env) => {
+  const name = env.envName
+  const config = envs.value[name]
+  if (config) {
+    launchEnv(name, config, 'local')
+  } else {
+    openExternal(`http://localhost:${env.port}`)
+  }
+}
+
 onUnmounted(() => {
   stopLogPolling()
   stopEnvPolling()
   stopDownloadPolling()
+  if (stopUnlockTimer) {
+    clearTimeout(stopUnlockTimer)
+    stopUnlockTimer = null
+  }
   window.removeEventListener('keydown', handleEscClose)
   
   if (unlistenTauriClose) {
@@ -1064,8 +953,12 @@ onUnmounted(() => {
       :isRunning="anyLocalServiceRunning"
       :allEnvs="globalRunningServices"
       :serverPort="appConfig.serverPort"
+      :stoppingEnvName="stoppingEnvName"
+      :stopControlsLocked="stopControlsLocked"
       @mouseenter="handleBadgesHover"
       @start-server="handleStartServer"
+      @stop-env="stopEnv"
+      @launch-local="handleLaunchLocalFromBadge"
     />
   </div>
 
@@ -1077,12 +970,10 @@ onUnmounted(() => {
     :downloadPercent="downloadPercent"
     :downloadStatus="downloadStatus"
     :downloadError="downloadError"
-    :downloadFilePath="downloadFilePath"
     :installingAndExiting="installingAndExiting"
     @success="handleSettingsSuccess"
     @message="({ text, type }) => showMessage(text, type)"
     @download="downloadNewVersion"
-    @install="confirmInstallAndExit"
   />
 
   <!-- ❓ 关闭软件确认询问模态框 -->
@@ -1095,95 +986,15 @@ onUnmounted(() => {
     @message="({ text, type }) => showMessage(text, type)"
   />
 
-  <!-- 🚀 右下角精美新版本更新悬浮气泡 -->
-  <div class="update-banner glass-card animate-slide-in" v-if="showUpdateBanner">
-    <div class="update-banner-header">
-      <span class="update-banner-icon">🚀</span>
-      <span class="update-banner-title">发现新版本 v{{ latestUpdateInfo?.latestVersion }}</span>
-      <button class="update-banner-close" @click="showUpdateBanner = false">×</button>
-    </div>
-    <div class="update-banner-body">
-      <p class="update-banner-desc">OmniDev 发布了新版本，立即查看更新日志并获取最新安装包！</p>
-    </div>
-    <div class="update-banner-footer">
-      <button class="btn-mini btn-mini-cancel" @click="handleIgnoreUpdate">忽略此版本</button>
-      <button class="btn-mini btn-mini-primary" @click="handleViewUpdate">查看更新</button>
-    </div>
-  </div>
-
-
-  
-
-  <div class="modal-overlay sub-modal-overlay" v-if="showCredentialFieldModal" @click.self="showCredentialFieldModal = false">
-    <div class="glass-card modal-content animate-zoom">
-      <div class="modal-header">
-        <h3>新增登录凭证字段</h3>
-        <button class="btn-close" @click="showCredentialFieldModal = false">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>注入类型</label>
-          <select v-model="credentialFieldForm.inject_type" class="form-control">
-            <option value="cookie">Cookie</option>
-            <option value="localStorage">localStorage</option>
-            <option value="sessionStorage">sessionStorage</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>字段名</label>
-          <input
-            v-model="credentialFieldForm.key"
-            type="text"
-            class="form-control"
-            placeholder="例如: auth_code 或 access_token"
-          />
-        </div>
-        <div class="form-group">
-          <label>字段值</label>
-          <input
-            v-model="credentialFieldForm.value"
-            type="text"
-            class="form-control"
-            placeholder="可选，可稍后再填"
-          />
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-mini btn-mini-cancel" @click="showCredentialFieldModal = false">
-          取消
-        </button>
-        <button class="btn-mini btn-mini-primary" @click="saveCredentialField">
-          确认添加
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 📂 多项目多分支管理选项卡大栏 (已移至 ServerCard 下方) -->
-  <div class="projects-tabs-bar">
-    <div class="tabs-container">
-      <button 
-        v-for="proj in projects" 
-        :key="proj.id" 
-        class="tab-btn" 
-        :class="{ active: activeProjectId === proj.id }"
-        @click="selectProject(proj.id)"
-        @mouseenter="handleProjectMouseEnter(proj.id)"
-        @mouseleave="handleProjectMouseLeave"
-      >
-        <span class="tab-icon">📁</span>
-        <span class="tab-name">{{ proj.name }}</span>
-        <div class="tab-actions" v-if="hoveredProjectId === proj.id" @click.stop>
-          <span class="action-btn edit" @click.stop="openEditProject(proj)" title="修改项目配置">✏️</span>
-          <span class="action-btn delete" @click.stop="deleteProject(proj.id, proj.name)" title="删除项目登记">🗑️</span>
-        </div>
-      </button>
-      
-      <button class="tab-btn-add" @click="openAddProject" title="登记新开发项目分支">
-        ➕ 新增项目
-      </button>
-    </div>
-  </div>
+  <!-- 📂 多项目多分支管理选项卡大栏 (使用 ProjectTabs 解耦组件) -->
+  <ProjectTabs
+    :projects="projects"
+    :activeProjectId="activeProjectId"
+    @select-project="selectProject"
+    @add-project="openAddProject"
+    @edit-project="openEditProject"
+    @delete-project="deleteProject"
+  />
 
   <!-- 🖥️ 当前项目远程服务器状态（仅在有激活项目时显示） -->
   <ServerCard
@@ -1292,227 +1103,19 @@ onUnmounted(() => {
 
   <Message :messages="messages" @close="removeMessage" />
 
-  <!-- 📥 下载完成安装确认弹窗 -->
-  <Modal 
-    ref="installModalRef" 
-    title="安装包下载完成" 
-    :showFooter="true"
-    @confirm="confirmInstallAndExit"
-    @cancel="handleInstallCancel"
-  >
-    <div class="install-confirm-body">
-      <p class="install-confirm-intro">
-        🎉 最新版安装包已成功下载并安全校验就绪！您现在可以立即安装新版本。
-      </p>
-
-      <!-- ⚠️ 精美警示卡片解决文字挤压与换行 -->
-      <div class="install-warning-card">
-        <div class="install-warning-title">
-          <span>⚠️ 关键提示</span>
-        </div>
-        <div class="install-warning-text">
-          <span>为防止安装程序在写入 C 盘覆盖旧文件时发生进程锁死或端口冲突：</span>
-          <strong>安装前当前控制台将自动安全退出并释放 3300 服务端口。</strong>
-        </div>
-      </div>
-
-      <!-- 📂 本地路径物理展示与双按钮控制 -->
-      <div class="install-path-block">
-        <label class="install-path-label">
-          <span>📥 安装包本地保存路径:</span>
-          <span class="install-path-status">校验成功 (CRC32)</span>
-        </label>
-        <div class="install-path-row">
-          <input 
-            type="text" 
-            :value="downloadFilePath || '正在检索安装包路径...'" 
-            readonly 
-            class="install-path-input"
-            title="安装包物理路径"
-          />
-          <button 
-            class="btn-mini btn-mini-cancel install-path-action" 
-            @click="copyInstallPath" 
-            title="复制绝对路径到剪贴板"
-          >
-            📋 复制
-          </button>
-          <button 
-            class="btn-mini btn-mini-cancel install-path-action" 
-            @click="openTempFolder" 
-            title="在 Windows 资源管理器中打开并定位此文件"
-          >
-            📂 文件夹
-          </button>
-        </div>
-      </div>
-
-    </div>
-    <template #footer>
-      <div class="install-footer-actions">
-        <button class="btn-mini btn-mini-cancel" @click="handleInstallCancel">稍后手动安装</button>
-        <button class="btn-mini btn-mini-primary install-primary-action" :disabled="installingAndExiting" @click="confirmInstallAndExit">
-        {{ installingAndExiting ? '正在启动安装...' : '✅ 立即安装并退出' }}
-        </button>
-      </div>
-    </template>
-  </Modal>
+  <!-- 📥 应用更新与安装校验（由 Composable 提供状态控制，AppUpdater 封装 UI） -->
+  <AppUpdater
+    v-model:showUpdateBanner="showUpdateBanner"
+    v-model:showInstallConfirm="showInstallConfirm"
+    :latestUpdateInfo="latestUpdateInfo"
+    :installingAndExiting="installingAndExiting"
+    @viewUpdate="settingsModalRef?.show('about')"
+    @confirmInstall="confirmInstallAndExit"
+  />
 </template>
 
 
 <style scoped>
-
-.install-confirm-body {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  color: var(--text);
-  padding: 6px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow: hidden;
-}
-
-.install-confirm-intro {
-  font-size: 13.5px;
-  line-height: 1.6;
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.install-warning-card {
-  background: rgba(239, 68, 68, 0.08);
-  border-left: 4px solid #ef4444;
-  border-radius: 6px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  box-sizing: border-box;
-}
-
-.install-warning-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #ef4444;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.install-warning-text {
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text);
-  font-weight: 500;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  word-break: break-word;
-}
-
-.install-warning-text strong {
-  color: #ef4444;
-  font-weight: 700;
-}
-
-.install-path-block {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.install-path-label {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.install-path-status {
-  color: #10b981;
-  font-size: 11px;
-  font-weight: 400;
-  white-space: nowrap;
-}
-
-.install-path-row {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.install-path-input {
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(120, 120, 120, 0.15);
-  color: var(--text-muted);
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-family: monospace;
-  outline: none;
-}
-
-.install-path-action {
-  margin: 0;
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.install-footer-actions {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.install-primary-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  border-radius: 6px;
-}
-
-@media (max-width: 560px) {
-  .install-path-label,
-  .install-footer-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .install-path-row {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .install-path-input {
-    grid-column: 1 / -1;
-  }
-}
-
-
 .projects-tabs-bar {
   margin: 0.8rem 0;
   background: rgba(255, 255, 255, 0.4);
@@ -2510,98 +2113,4 @@ onUnmounted(() => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ==================== 右下角更新通知卡片 ==================== */
-.update-banner {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 320px;
-  padding: 16px;
-  z-index: 1001;
-  border: 1px solid rgba(99, 102, 241, 0.22);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.25);
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 12px;
-}
-
-[data-theme="light"] .update-banner {
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.12), 0 8px 10px -6px rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.2);
-}
-
-.update-banner-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  position: relative;
-}
-
-.update-banner-icon {
-  font-size: 18px;
-}
-
-.update-banner-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  background: linear-gradient(135deg, #a5b4fc, #818cf8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-[data-theme="light"] .update-banner-title {
-  background: linear-gradient(135deg, var(--primary), #818cf8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.update-banner-close {
-  position: absolute;
-  right: -4px;
-  top: -4px;
-  background: none;
-  border: none;
-  font-size: 18px;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px;
-  line-height: 1;
-}
-
-.update-banner-close:hover {
-  color: var(--text);
-}
-
-.update-banner-desc {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
-.update-banner-footer {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.animate-slide-in {
-  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(20px) scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0) scale(1);
-    opacity: 1;
-  }
-}
 </style>

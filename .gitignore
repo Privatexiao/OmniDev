@@ -8,7 +8,20 @@ src-tauri/target/
 
 # 本地环境变量和本地配置文件
 *.local
+.env
+.env.*
+!.env.example
 .env*.local
+
+# Tauri updater 私钥与本地签名产物（公钥内容写入 tauri.conf.json）
+.tauri/
+release-secrets/
+*.key
+*.key.pub
+*.pem
+*.p12
+*.pfx
+*.sig
 
 # 编辑器与系统临时文件
 .vscode/

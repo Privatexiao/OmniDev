@@ -50,7 +50,8 @@ export function saveState() {
 export function getPortPid(port) {
   try {
     if (process.platform === 'win32') {
-      const output = execSync('chcp 65001 > nul && netstat -ano', { encoding: 'utf8' });
+      // 💡 优化性能：通过 findstr 进行前置过滤，避免 netstat 列出全网数千行连接导致的 CPU 和字符串分割高开销
+      const output = execSync(`chcp 65001 > nul && netstat -ano | findstr :${port}`, { encoding: 'utf8' });
       const lines = output.split('\n');
       for (const line of lines) {
         if (line.includes(`:${port}`) && line.includes('LISTENING')) {

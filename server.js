@@ -26,6 +26,7 @@ import configRoutes from './server/routes/configRoutes.js';
 // 导入服务以支持系统退出时的回收操作
 import { disconnectSSH } from './server/services/sshService.js';
 import { killActiveProcess, loadState } from './server/services/processService.js';
+import { cleanOldLogs } from './server/services/logService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,11 +89,21 @@ if (fs.existsSync(distPath)) {
 
 // 4. 监听端口并成功冷启动
 const server = app.listen(PORT, () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
   console.log(`========================================`);
   console.log(`[Ready]   OmniDev Engine v1.0 Active!`);
   console.log(`[Server]  Local Control: http://localhost:${PORT}`);
   console.log(`[Sandbox] Physical Sandbox Security Enabled.`);
+  console.log(`[Time]    ${timeStr}`);
   console.log(`========================================`);
+  
+  // 🚀 后端控制端冷启动监听成功后，立即全局清理一次超过 3 天的历史日志文件，释放磁盘空间
+  try {
+    cleanOldLogs();
+  } catch (e) { /* ignore */ }
 });
 
 server.on('error', (err) => {

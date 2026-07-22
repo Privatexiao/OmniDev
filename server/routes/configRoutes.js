@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFile, spawn } from 'child_process';
-import { CONFIG_DIR, PROJECTS_FILE_PATH, getActiveProject } from '../config/pathConfig.js';
+import { CONFIG_DIR, PROJECTS_FILE_PATH, APP_CONFIG_PATH, getActiveProject } from '../config/pathConfig.js';
 import { getCommonEnvsConfig, normalizeCredentialFields, getCommonEnvs } from '../services/envService.js';
 import { securityService } from '../services/securityService.js';
 
@@ -23,39 +23,128 @@ function getDefaultExportDir() {
 router.get('/api/config/export', (req, res) => {
   try {
     const includePrivacy = req.query.includePrivacy === 'true';
-    // 若导出隐私数据，需从 getCommonEnvs 中读取已解密的密码和凭证
-    const commonEnvs = getCommonEnvs();
 
-    const exportedEnvs = {};
-    for (const [envKey, envVal] of Object.entries(commonEnvs)) {
-      const creds = normalizeCredentialFields(envVal.credentials || []);
-      exportedEnvs[envKey] = {
-        VUE_DEV_HOST: envVal.VUE_DEV_HOST || '',
-        company_name: envVal.company_name || '',
-        remote_dir: envVal.remote_dir || '',
-        local_port: envVal.local_port || null,
-        login_url: envVal.login_url || '',
-        online_username: includePrivacy ? (envVal.online_username || '') : '',
-        online_password: includePrivacy ? (envVal.online_password || '') : '',
-        login_browser: envVal.login_browser || 'chrome',
-        disable_branch: envVal.disable_branch || false,
-        start_cmd: envVal.start_cmd || '',
-        credentials: creds.map(f => ({
-          key: f.key,
-          value: includePrivacy ? (f.value || '') : '',
-          inject_type: f.inject_type
-        }))
-      };
+    // 1. 读取全局 app.json 配置
+    let appSettings = {};
+    if (fs.existsSync(APP_CONFIG_PATH)) {
+      try {
+        appSettings = JSON.parse(fs.readFileSync(APP_CONFIG_PATH, 'utf-8'));
+      } catch (e) {
+        console.error('[Export] 读取全局 app.json 失败:', e.message);
+      }
     }
 
-    const activeProj = getActiveProject();
-    const sourceName = (activeProj && activeProj.name) ? activeProj.name : '';
+    // 2. 读取项目清单 projects.json
+    let projectsList = [];
+    let activeProjectId = '';
+    if (fs.existsSync(PROJECTS_FILE_PATH)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(PROJECTS_FILE_PATH, 'utf-8'));
+        projectsList = data.projects || [];
+        activeProjectId = data.activeProjectId || '';
+      } catch (e) {
+        console.error('[Export] 读取项目清单 projects.json 失败:', e.message);
+      }
+    }
 
+    const projectsData = {};
+
+    // 3. 循环遍历每个项目并读取其独立的环境和 SSH 远程配置
+    for (const proj of projectsList) {
+      if (!proj.id) continue;
+      const projConfigDir = path.join(CONFIG_DIR, 'projects', proj.id);
+      const envsPath = path.join(projConfigDir, 'envs_common.json');
+      const sshPath = path.join(projConfigDir, 'ssh.json');
+
+      const projectConfig = {
+        envs: {},
+        ssh: {}
+      };
+
+      // 3.1 读取并脱敏项目环境
+      if (fs.existsSync(envsPath)) {
+        try {
+          const rawEnvsData = JSON.parse(fs.readFileSync(envsPath, 'utf-8'));
+          const rawEnvs = rawEnvsData.envs || {};
+
+          for (const [envKey, envVal] of Object.entries(rawEnvs)) {
+            const scope = `${proj.id}#${envKey}`;
+            const rawCreds = normalizeCredentialFields(envVal.credentials || []);
+
+            // 根据是否包含隐私数据，决定从保险库解密还是抹空
+            let onlinePassword = '';
+            let creds = [];
+
+            if (includePrivacy) {
+              onlinePassword = securityService.getSecret(scope, 'online_password') || envVal.online_password || '';
+              creds = rawCreds.map(f => ({
+                key: f.key,
+                value: securityService.getSecret(scope, f.key) || f.value || '',
+                inject_type: f.inject_type,
+                enabled: f.enabled !== false
+              }));
+            } else {
+              onlinePassword = '';
+              creds = rawCreds.map(f => ({
+                key: f.key,
+                value: '',
+                inject_type: f.inject_type,
+                enabled: f.enabled !== false
+              }));
+            }
+
+            projectConfig.envs[envKey] = {
+              VUE_DEV_HOST: envVal.VUE_DEV_HOST || '',
+              company_name: envVal.company_name || '',
+              remote_dir: envVal.remote_dir || '',
+              local_port: envVal.local_port || null,
+              login_url: envVal.login_url || '',
+              local_login_path: envVal.local_login_path || '',
+              online_username: envVal.online_username || '',
+              online_password: onlinePassword,
+              login_browser: envVal.login_browser || 'chrome',
+              disable_branch: !!envVal.disable_branch,
+              disable_start: !!envVal.disable_start,
+              node_version: envVal.node_version || '',
+              start_cmd: envVal.start_cmd || '',
+              credentials: creds
+            };
+          }
+        } catch (e) {
+          console.error(`[Export] 读取项目 [${proj.name}] 环境配置失败:`, e.message);
+        }
+      }
+
+      // 3.2 读取并脱敏项目 SSH 配置
+      if (fs.existsSync(sshPath)) {
+        try {
+          const sshConfig = JSON.parse(fs.readFileSync(sshPath, 'utf-8'));
+          if (sshConfig && sshConfig.host) {
+            projectConfig.ssh = {
+              host: sshConfig.host || '',
+              port: sshConfig.port || 22,
+              username: sshConfig.username || '',
+              password: includePrivacy ? (sshConfig.password || '') : '',
+              remote_path: sshConfig.remote_path || ''
+            };
+          }
+        } catch (e) {
+          console.error(`[Export] 读取项目 [${proj.name}] SSH 配置失败:`, e.message);
+        }
+      }
+
+      projectsData[proj.id] = projectConfig;
+    }
+
+    // 4. 构建终极全量导出包 Payload
     const payload = {
-      version: '1.0.0',
+      version: '1.1.0',
       exportedAt: new Date().toISOString(),
-      _sourceName: sourceName,
-      envs: exportedEnvs
+      includePrivacy,
+      appConfig: appSettings,
+      projects: projectsList,
+      activeProjectId,
+      projectsData
     };
 
     let targetDir = getDefaultExportDir();
@@ -69,13 +158,13 @@ router.get('/api/config/export', (req, res) => {
       }
     }
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const fileName = `omnidev-team-config-${timestamp}.json`;
+    const fileName = `omnidev-full-config-${timestamp}.json`;
     const filePath = path.join(targetDir, fileName);
 
     fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
     res.json({ success: true, fileName, path: filePath });
   } catch (err) {
-    res.status(500).json({ error: '导出团队配置失败: ' + err.message });
+    res.status(500).json({ error: '导出全局团队配置失败: ' + err.message });
   }
 });
 
@@ -161,85 +250,207 @@ router.post('/api/config/open-folder', (req, res) => {
 
 router.post('/api/config/import', (req, res) => {
   const { configData, projectName, projectPath } = req.body;
-  if (!configData || !configData.envs) {
-    return res.status(400).json({ error: '无效 of OmniDev 导入包，必须包含完整的 envs 属性定义' });
-  }
-  const name = (projectName || '').trim();
-  if (!name) {
-    return res.status(400).json({ error: '请输入新项目名称' });
+  if (!configData) {
+    return res.status(400).json({ error: '无效的导入包：缺少配置数据' });
   }
 
-  try {
-    let projectsData;
+  // 判断是大包格式（全量备份恢复）还是旧版单项目格式
+  const isFullBackup = !!configData.projectsData;
+
+  if (isFullBackup) {
+    // ==================== 全量备份恢复逻辑 ====================
     try {
-      projectsData = JSON.parse(fs.readFileSync(PROJECTS_FILE_PATH, 'utf-8'));
-    } catch (e) {
-      return res.status(500).json({ error: '读取项目清单失败：' + e.message });
-    }
-
-    const cleanId = name.toLowerCase().replace(/[^a-z0-9一-鿿]/g, '_').replace(/_+/g, '_');
-    if (!cleanId || projectsData.projects.some(p => p.id === cleanId)) {
-      return res.status(400).json({ error: `项目名称 "${name}" 对应的 ID [${cleanId}] 已存在，请换一个名称` });
-    }
-
-    const cleanPath = projectPath ? path.normalize(projectPath.trim()) : '';
-
-    const newProject = { id: cleanId, name, path: cleanPath };
-    projectsData.projects.push(newProject);
-    fs.writeFileSync(PROJECTS_FILE_PATH, JSON.stringify(projectsData, null, 2), 'utf-8');
-
-    // 为新项目创建独立配置目录并写入 envs（凭证内联，脱敏）
-    const newProjectConfigDir = path.join(CONFIG_DIR, 'projects', cleanId);
-    const newEnvFilePath = path.join(newProjectConfigDir, 'envs_common.json');
-    fs.mkdirSync(newProjectConfigDir, { recursive: true });
-
-    const envsPayload = { envs: {} };
-    for (const [envKey, envVal] of Object.entries(configData.envs)) {
-      const creds = normalizeCredentialFields(envVal.credentials || []);
-
-      // 若导入文件中带有隐私凭据，将其写入新项目的独立加密保险库命名空间中
-      const scope = `${cleanId}#${envKey}`;
-      if (envVal.online_password) {
-        securityService.saveSecret(scope, 'online_password', envVal.online_password);
+      let projectsData;
+      try {
+        projectsData = JSON.parse(fs.readFileSync(PROJECTS_FILE_PATH, 'utf-8'));
+      } catch (e) {
+        projectsData = { projects: [], activeProjectId: '' };
       }
-      creds.forEach(f => {
-        if (f.value) {
-          securityService.saveSecret(scope, f.key, f.value);
+
+      const backupProjects = configData.projects || [];
+      const backupProjectsData = configData.projectsData || {};
+      let importCount = 0;
+      const importedNames = [];
+
+      for (const proj of backupProjects) {
+        if (!proj.id || !proj.name) continue;
+
+        // 判断项目 ID 在本地是否已经存在，如果存在则视作更新/覆盖，如果不存在则新增
+        const existProj = projectsData.projects.find(p => p.id === proj.id);
+        if (!existProj) {
+          projectsData.projects.push({
+            id: proj.id,
+            name: proj.name,
+            path: proj.path || ''
+          });
+        } else {
+          // 覆盖已有项目的路径
+          if (proj.path) {
+            existProj.path = proj.path;
+          }
         }
+
+        const projectConfigDir = path.join(CONFIG_DIR, 'projects', proj.id);
+        fs.mkdirSync(projectConfigDir, { recursive: true });
+
+        const projData = backupProjectsData[proj.id] || {};
+
+        // A. 写入 envs_common.json
+        const envsFilePath = path.join(projectConfigDir, 'envs_common.json');
+        const envsPayload = { envs: projData.envs || {} };
+
+        // 提取并保存密码到系统加密保险库（如有）
+        for (const [envKey, envVal] of Object.entries(envsPayload.envs)) {
+          const scope = `${proj.id}#${envKey}`;
+          
+          if (envVal.online_password) {
+            securityService.saveSecret(scope, 'online_password', envVal.online_password);
+          }
+          const creds = normalizeCredentialFields(envVal.credentials || []);
+          creds.forEach(f => {
+            if (f.value) {
+              securityService.saveSecret(scope, f.key, f.value);
+            }
+          });
+
+          // 脱敏物理文件
+          envVal.online_password = '';
+          envVal.credentials = creds.map(f => ({ key: f.key, value: '', inject_type: f.inject_type, enabled: f.enabled !== false }));
+        }
+
+        fs.writeFileSync(envsFilePath, JSON.stringify(envsPayload, null, 2), 'utf-8');
+
+        // B. 写入 ssh.json
+        const sshFilePath = path.join(projectConfigDir, 'ssh.json');
+        const sshData = projData.ssh || {};
+        if (sshData && sshData.host) {
+          fs.writeFileSync(sshFilePath, JSON.stringify(sshData, null, 2), 'utf-8');
+        }
+
+        // C. 确保 state.json 存在
+        const stateFilePath = path.join(projectConfigDir, 'state.json');
+        if (!fs.existsSync(stateFilePath)) {
+          fs.writeFileSync(stateFilePath, JSON.stringify({}, null, 2), 'utf-8');
+        }
+
+        importCount++;
+        importedNames.push(proj.name);
+      }
+
+      // 如果有全局配置 appConfig
+      if (configData.appConfig) {
+        try {
+          let localAppConfig = {};
+          if (fs.existsSync(APP_CONFIG_PATH)) {
+            localAppConfig = JSON.parse(fs.readFileSync(APP_CONFIG_PATH, 'utf-8'));
+          }
+          const nextAppConfig = {
+            ...localAppConfig,
+            ...configData.appConfig
+          };
+          fs.writeFileSync(APP_CONFIG_PATH, JSON.stringify(nextAppConfig, null, 2), 'utf-8');
+        } catch (e) {
+          console.error('[Import] 合并全局 appConfig 失败:', e.message);
+        }
+      }
+
+      // 写入更新后的项目清单 projects.json
+      fs.writeFileSync(PROJECTS_FILE_PATH, JSON.stringify(projectsData, null, 2), 'utf-8');
+
+      res.json({
+        success: true,
+        isFullBackup: true,
+        envCount: importCount,
+        envNames: importedNames,
+        message: `全量配置恢复成功！已成功导入/同步 ${importCount} 个项目（${importedNames.join(', ')}）。`
       });
 
-      envsPayload.envs[envKey] = {
-        VUE_DEV_HOST: envVal.VUE_DEV_HOST || '',
-        company_name: envVal.company_name || '',
-        remote_dir: envVal.remote_dir || '',
-        local_port: envVal.local_port || null,
-        login_url: envVal.login_url || '',
-        online_username: envVal.online_username || '',
-        online_password: '',
-        login_browser: envVal.login_browser || 'chrome',
-        start_cmd: envVal.start_cmd || '',
-        node_version: envVal.node_version || '',
-        credentials: creds.map(f => ({ key: f.key, value: '', inject_type: f.inject_type })),
-        ...(envVal.disable_branch ? { disable_branch: true } : {}),
-        ...(envVal.disable_start ? { disable_start: true } : {})
-      };
+    } catch (err) {
+      res.status(500).json({ error: '恢复全量备份配置失败: ' + err.message });
     }
-    fs.writeFileSync(newEnvFilePath, JSON.stringify(envsPayload, null, 2), 'utf-8');
 
-    const newStatePath = path.join(newProjectConfigDir, 'state.json');
-    fs.writeFileSync(newStatePath, JSON.stringify({}, null, 2), 'utf-8');
+  } else {
+    // ==================== 原单项目导入逻辑 ====================
+    if (!configData.envs) {
+      return res.status(400).json({ error: '无效 of OmniDev 导入包，必须包含完整的 envs 属性定义' });
+    }
+    const name = (projectName || '').trim();
+    if (!name) {
+      return res.status(400).json({ error: '请输入新项目名称' });
+    }
 
-    const envNames = Object.keys(configData.envs);
+    try {
+      let projectsData;
+      try {
+        projectsData = JSON.parse(fs.readFileSync(PROJECTS_FILE_PATH, 'utf-8'));
+      } catch (e) {
+        return res.status(500).json({ error: '读取项目清单失败：' + e.message });
+      }
 
-    res.json({
-      success: true,
-      project: { id: cleanId, name, path: cleanPath },
-      envCount: envNames.length,
-      envNames,
-      message: `已成功创建新项目「${name}」并导入 ${envNames.length} 个环境定义。`
-    });
-  } catch (err) {
-    res.status(500).json({ error: '创建新项目并导入配置失败: ' + err.message });
+      const cleanId = name.toLowerCase().replace(/[^a-z0-9一-鿿]/g, '_').replace(/_+/g, '_');
+      if (!cleanId || projectsData.projects.some(p => p.id === cleanId)) {
+        return res.status(400).json({ error: `项目名称 "${name}" 对应的 ID [${cleanId}] 已存在，请换一个名称` });
+      }
+
+      const cleanPath = projectPath ? path.normalize(projectPath.trim()) : '';
+
+      const newProject = { id: cleanId, name, path: cleanPath };
+      projectsData.projects.push(newProject);
+      fs.writeFileSync(PROJECTS_FILE_PATH, JSON.stringify(projectsData, null, 2), 'utf-8');
+
+      const newProjectConfigDir = path.join(CONFIG_DIR, 'projects', cleanId);
+      const newEnvFilePath = path.join(newProjectConfigDir, 'envs_common.json');
+      fs.mkdirSync(newProjectConfigDir, { recursive: true });
+
+      const envsPayload = { envs: {} };
+      for (const [envKey, envVal] of Object.entries(configData.envs)) {
+        const creds = normalizeCredentialFields(envVal.credentials || []);
+
+        const scope = `${cleanId}#${envKey}`;
+        if (envVal.online_password) {
+          securityService.saveSecret(scope, 'online_password', envVal.online_password);
+        }
+        creds.forEach(f => {
+          if (f.value) {
+            securityService.saveSecret(scope, f.key, f.value);
+          }
+        });
+
+        envsPayload.envs[envKey] = {
+          VUE_DEV_HOST: envVal.VUE_DEV_HOST || '',
+          company_name: envVal.company_name || '',
+          remote_dir: envVal.remote_dir || '',
+          local_port: envVal.local_port || null,
+          login_url: envVal.login_url || '',
+          local_login_path: envVal.local_login_path || '',
+          online_username: envVal.online_username || '',
+          online_password: '',
+          login_browser: envVal.login_browser || 'chrome',
+          start_cmd: envVal.start_cmd || '',
+          node_version: envVal.node_version || '',
+          credentials: creds.map(f => ({ key: f.key, value: '', inject_type: f.inject_type, enabled: f.enabled !== false })),
+          ...(envVal.disable_branch ? { disable_branch: true } : {}),
+          ...(envVal.disable_start ? { disable_start: true } : {})
+        };
+      }
+      fs.writeFileSync(newEnvFilePath, JSON.stringify(envsPayload, null, 2), 'utf-8');
+
+      const newStatePath = path.join(newProjectConfigDir, 'state.json');
+      fs.writeFileSync(newStatePath, JSON.stringify({}, null, 2), 'utf-8');
+
+      const envNames = Object.keys(configData.envs);
+
+      res.json({
+        success: true,
+        isFullBackup: false,
+        project: { id: cleanId, name, path: cleanPath },
+        envCount: envNames.length,
+        envNames,
+        message: `已成功创建新项目「${name}」并导入 ${envNames.length} 个环境定义。`
+      });
+    } catch (err) {
+      res.status(500).json({ error: '创建新项目并导入配置失败: ' + err.message });
+    }
   }
 });
 

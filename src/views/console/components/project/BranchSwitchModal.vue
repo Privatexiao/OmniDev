@@ -1,6 +1,10 @@
 <script setup>
+/**
+ * @file BranchSwitchModal.vue
+ * @description 远程环境分支切换输入模态框，基于 Promise 式的调用封装，用于接收用户输入的目标分支名称并安全切换
+ */
 import { ref, nextTick } from 'vue'
-import Modal from '../../../components/Modal.vue'
+import Modal from '../../../../components/Modal.vue'
 
 const modalRef = ref(null)
 const title = ref('')

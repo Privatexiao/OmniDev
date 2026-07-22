@@ -27,13 +27,15 @@ const utils = {
         .map(item => ({
           key: String(item.key || '').trim(),
           value: item.value || '',
-          inject_type: item.inject_type || 'cookie'
+          inject_type: item.inject_type || 'cookie',
+          enabled: item.enabled !== false
         }))
     }
     return Object.entries(raw || {}).map(([key, value]) => ({
       key,
       value,
-      inject_type: 'cookie'
+      inject_type: 'cookie',
+      enabled: true
     }))
   },
 
@@ -57,6 +59,7 @@ export const loginAdapters = {
     desc: '按字段配置把登录凭证注入 Cookie、localStorage 或 sessionStorage',
     execute(config) {
       const credentialFields = utils.normalizeCredentialFields(config.credentials)
+        .filter(field => field.enabled !== false)
       utils.writeCookie('VUE_DEV_HOST', config.VUE_DEV_HOST)
       credentialFields.forEach(field => utils.writeCredentialField(field))
 

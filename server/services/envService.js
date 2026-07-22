@@ -55,7 +55,7 @@ export function saveCommonEnvConfig(envKey, config) {
       securityService.saveSecret(scope, field.key, field.value);
     }
   });
-  const strippedCredentials = credentials.map(f => ({ key: f.key, value: '', inject_type: f.inject_type }));
+  const strippedCredentials = credentials.map(f => ({ key: f.key, value: '', inject_type: f.inject_type, enabled: f.enabled !== false }));
 
   const data = getCommonEnvsConfig();
   if (!data.envs) data.envs = {};
@@ -65,6 +65,7 @@ export function saveCommonEnvConfig(envKey, config) {
     remote_dir: config.remote_dir || '',
     local_port: config.local_port ? parseInt(config.local_port, 10) : null,
     login_url: config.login_url || '',
+    local_login_path: config.local_login_path || '',
     online_username: config.online_username || '',
     online_password: '', // 物理文件中彻底脱敏
     login_browser: config.login_browser || 'chrome',
@@ -141,7 +142,8 @@ export function normalizeCredentialFields(raw) {
       .map(item => ({
         key: String(item.key || '').trim(),
         value: item.value || '',
-        inject_type: item.inject_type || 'cookie'
+        inject_type: item.inject_type || 'cookie',
+        enabled: item.enabled !== false
       }));
   }
   return Object.entries(raw || {}).map(([key, val]) => {
@@ -149,13 +151,15 @@ export function normalizeCredentialFields(raw) {
       return {
         key: String(val.key || '').trim(),
         value: val.value || '',
-        inject_type: val.inject_type || 'cookie'
+        inject_type: val.inject_type || 'cookie',
+        enabled: val.enabled !== false
       };
     }
     return {
       key: String(key || '').trim(),
       value: val || '',
-      inject_type: 'cookie'
+      inject_type: 'cookie',
+      enabled: true
     };
   }).filter(item => item && item.key);
 }

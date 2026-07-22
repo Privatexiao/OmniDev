@@ -1,5 +1,7 @@
 {
-  "version": "0.1.1",
-  "changelog": "优化了一下问题",
-  "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe"
+  "version": "0.1.4",
+  "updateMode": "automatic",
+  "changelog": "优化本地环境启动、Node 版本强制切换及应用内签名更新流程",
+  "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe",
+  "updaterSignature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeDZ6RStPVVhuQXpoamEwcjFoenZHelpyclNLTkIxbld0bFpNU3NtbDVTY0xLYUtIaTYrbXFTaXpnaGlmYnVUNUpwOGJpZy9iWHdOVnN2d1N3OTV3b0EwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzAyMjg0CWZpbGU6T21uaURldl8wLjEuNF94NjQtc2V0dXAuZXhlCkZtbE15d1JJK0Z6UHY3NU5BWmRvYzJaQi9KVElLMjAyWVRZZTJLSkpjZlBhRDA4T0hQVWJPY2p1c084Y3lNRy8wVFk0cUJiTGgvWC95WTA3WTZxNkNBPT0K"
 }

@@ -1,5 +1,16 @@
 <script setup>
+/**
+ * @file ProjectModal.vue
+ * @description 项目分支登记/编辑模态框，用于新增登记本地项目或修改已有项目的物理工作路径与名称
+ */
 import { ref, watch } from 'vue'
+
+const props = defineProps({
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const emit = defineEmits(['success', 'message'])
 
@@ -38,6 +49,12 @@ const show = (targetMode, proj = null) => {
 
 const hide = () => {
   visible.value = false
+}
+
+const handleOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    hide()
+  }
 }
 
 // 🚀 一键登记或保存项目分支配置
@@ -91,7 +108,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="modal-overlay" v-if="visible" @click.self="hide">
+  <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content animate-zoom">
       <div class="modal-header">
         <h3>{{ mode === 'edit' ? '✏️ 修改项目分支配置' : '➕ 登记新项目分支' }}</h3>

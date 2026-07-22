@@ -1,4 +1,10 @@
 <script setup>
+/**
+ * @file StatusBadges.vue
+ * @description 头部状态指示徽章组件，负责展示后端服务连接状态、本地开发服务全局启动状态及提供文档访问链接
+ */
+import { openExternal } from '../../../../utils/platform'
+
 // 声明 Props 验证，指定 Type 与 Default 默认值
 defineProps({
   isServerConnected: {
@@ -16,10 +22,18 @@ defineProps({
   serverPort: {
     type: Number,
     default: 3300
+  },
+  stoppingEnvName: {
+    type: String,
+    default: ''
+  },
+  stopControlsLocked: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['start-server'])
+defineEmits(['start-server', 'stop-env', 'launch-local'])
 </script>
 
 <template>
@@ -67,25 +81,37 @@ defineEmits(['start-server'])
             
             <div class="tooltip-env-info">
               <span class="tooltip-project-tag">[{{ env.projectName }}]</span>
-              <span class="tooltip-env-name">{{ env.envName }}</span>
+              <span class="tooltip-env-name" :title="env.envName">{{ env.envName }}</span>
               <!-- 动态显示被占用的本地调试端口 -->
-              <a 
+              <span 
                 v-if="env.port" 
                 class="tooltip-env-port" 
-                :href="'http://localhost:' + env.port" 
-                target="_blank"
-                @click.stop
-              >:{{ env.port }}</a>
+                @click.stop="$emit('launch-local', env)"
+                title="点击登录本地系统端口"
+              >:{{ env.port }}</span>
             </div>
             
-            <a 
-              v-if="env.port" 
-              class="tooltip-open-link" 
-              :href="'http://localhost:' + env.port" 
-              target="_blank"
-              @click.stop
-            >打开 ↗</a>
-            <span v-else class="tooltip-status-text">运行中</span>
+            <div class="tooltip-env-actions">
+              <span 
+                v-if="env.port" 
+                class="tooltip-open-link" 
+                @click.stop="$emit('launch-local', env)"
+                title="一键登录并直达本地系统页面"
+              >打开</span>
+              <span v-else class="tooltip-status-text">运行中</span>
+              
+              <span class="tooltip-action-divider">|</span>
+              
+              <button 
+                class="tooltip-stop-btn" 
+                :class="{ 'is-stopping': stoppingEnvName === env.envName }"
+                :disabled="stopControlsLocked"
+                @click.stop="$emit('stop-env', env.envName)"
+                :title="stoppingEnvName === env.envName ? '正在停止，请稍候' : '强关该环境本地服务'"
+              >
+                {{ stoppingEnvName === env.envName ? '停止中...' : '停止' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -159,7 +185,7 @@ defineEmits(['start-server'])
   top: 100%;
   right: 0;
   margin-top: 10px;
-  width: 280px;
+  width: 360px;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -417,5 +443,68 @@ a.tooltip-env-port:hover {
 
 [data-theme="dark"] .hint-tip {
   color: #34d399;
+}
+
+/* 本地服务气泡操作动作区 */
+.tooltip-env-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tooltip-action-divider {
+  color: rgba(120, 120, 120, 0.25);
+  font-size: 11px;
+  user-select: none;
+}
+
+.tooltip-stop-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-stop-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+
+.tooltip-stop-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.tooltip-stop-btn.is-stopping {
+  color: #f59e0b;
+  opacity: 1;
+}
+
+[data-theme="dark"] .tooltip-stop-btn {
+  color: #f87171;
+}
+
+[data-theme="dark"] .tooltip-stop-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+span.tooltip-env-port {
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+span.tooltip-env-port:hover {
+  background: rgba(16, 185, 129, 0.18);
+  text-decoration: underline;
 }
 </style>

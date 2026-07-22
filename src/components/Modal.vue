@@ -9,6 +9,10 @@ const props = defineProps({
   showFooter: {
     type: Boolean,
     default: true
+  },
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -33,6 +37,12 @@ const handleCancel = () => {
   hide()
 }
 
+const handleBackdropClick = () => {
+  if (props.closeOnOverlayClick) {
+    handleCancel()
+  }
+}
+
 // 暴露通用的打开和关闭底层接口
 defineExpose({
   show,
@@ -43,7 +53,7 @@ defineExpose({
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div class="modal-backdrop" v-if="visible" @click.self="handleCancel">
+      <div class="modal-backdrop" v-if="visible" @click.self="handleBackdropClick">
         <Transition name="zoom">
           <div class="modal-container glass-card" v-if="visible">
             <!-- 1. 头部标题区插槽 -->

@@ -1,6 +1,17 @@
 <script setup>
+/**
+ * @file EnvDetailModal.vue
+ * @description 环境配置数据详情展示弹窗组件，方便用户免受编辑干扰地一键复制或核对当前选定环境的全部加密明细与物理映射
+ */
 import { ref, watch, computed } from 'vue'
-import { copyToClipboard } from '../../../utils/platform'
+import { copyToClipboard } from '../../../../utils/platform'
+
+const props = defineProps({
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const emit = defineEmits(['message'])
 
@@ -31,6 +42,12 @@ const hide = () => {
   visible.value = false
 }
 
+const handleOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    hide()
+  }
+}
+
 // 🚀 剪贴板快速复制辅助方法
 const copyText = async (text) => {
   if (!text) return
@@ -46,7 +63,8 @@ const normalizeCredentialFields = (raw) => {
       .map(item => ({
         key: String(item.key || '').trim(),
         value: item.value || '',
-        inject_type: item.inject_type || 'cookie'
+        inject_type: item.inject_type || 'cookie',
+        enabled: item.enabled !== false
       }))
   }
   return Object.entries(raw || {}).map(([key, val]) => {
@@ -54,13 +72,15 @@ const normalizeCredentialFields = (raw) => {
       return {
         key: String(val.key || '').trim(),
         value: val.value || '',
-        inject_type: val.inject_type || 'cookie'
+        inject_type: val.inject_type || 'cookie',
+        enabled: val.enabled !== false
       }
     }
     return {
       key: String(key || '').trim(),
       value: val || '',
-      inject_type: 'cookie'
+      inject_type: 'cookie',
+      enabled: true
     }
   }).filter(item => item && item.key)
 }
@@ -73,7 +93,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="modal-overlay" v-if="visible" @click.self="hide">
+  <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content env-detail-modal animate-zoom">
       <div class="modal-header">
         <h3>环境配置详情: <span class="env-highlight-name">{{ envName }}</span></h3>
@@ -81,8 +101,9 @@ defineExpose({
       </div>
       
       <div class="modal-body env-modal-body">
+        <!-- 1. 🔑 基础配置 -->
         <div class="detail-section">
-          <h4 class="section-title">📌 基础环境信息</h4>
+          <h4 class="section-title">🔑 基础配置</h4>
           <div class="detail-grid">
             <div class="detail-row">
               <span class="detail-label">企业名称</span>
@@ -93,13 +114,19 @@ defineExpose({
             </div>
 
             <div class="detail-row">
-              <span class="detail-label">后端代理源 (VUE_DEV_HOST)</span>
+              <span class="detail-label">线上地址</span>
               <div class="detail-content">
                 <span class="detail-value text-link">{{ envConfig.VUE_DEV_HOST || '未配置' }}</span>
                 <button class="btn-copy-mini" @click="copyText(envConfig.VUE_DEV_HOST)" v-if="envConfig.VUE_DEV_HOST">复制</button>
               </div>
             </div>
+          </div>
+        </div>
 
+        <!-- 2. 💻 本地开发与登录凭证配置 -->
+        <div class="detail-section">
+          <h4 class="section-title">💻 本地开发与登录凭证配置</h4>
+          <div class="detail-grid">
             <div class="detail-row">
               <span class="detail-label">本地端口</span>
               <div class="detail-content">
@@ -107,6 +134,14 @@ defineExpose({
                   {{ envConfig.running ? `🟢 ${envConfig.port || '分配中'}` : '🔴 未运行' }}
                 </span>
                 <button class="btn-copy-mini" @click="copyText(String(envConfig.port))" v-if="envConfig.running && envConfig.port">复制</button>
+              </div>
+            </div>
+
+            <div class="detail-row" v-if="envConfig.local_login_path">
+              <span class="detail-label">本地登录子路径</span>
+              <div class="detail-content">
+                <span class="detail-value text-code">{{ envConfig.local_login_path }}</span>
+                <button class="btn-copy-mini" @click="copyText(envConfig.local_login_path)">复制</button>
               </div>
             </div>
 
@@ -129,6 +164,41 @@ defineExpose({
             </div>
 
             <div class="detail-row">
+              <span class="detail-label">启动状态</span>
+              <div class="detail-content">
+                <span class="detail-value" :class="envConfig.disable_start ? 'text-danger' : 'text-success'">
+                  {{ envConfig.disable_start ? '已禁用' : '已启用' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子项目动态凭证值 -->
+          <div class="dynamic-credentials" v-if="normalizeCredentialFields(envConfig.credentials).length > 0" style="margin-top: 14px;">
+            <h5 class="sub-section-title" style="margin: 10px 0 8px 0; font-size: 13px; font-weight: 700; color: var(--text);">🔐 登录凭证注入明细 (Cookie / Token)</h5>
+            <div class="detail-grid">
+              <div class="detail-row" v-for="field in normalizeCredentialFields(envConfig.credentials)" :key="field.key" :class="{ 'cred-detail-disabled': field.enabled === false }">
+                <span class="detail-label" :class="{ 'text-disabled-through': field.enabled === false }">
+                  {{ field.key }}
+                  <span v-if="field.enabled === false" class="cred-disabled-hint-text">(已禁用)</span>
+                </span>
+                <div class="detail-content">
+                  <span class="auth-key-pill" :class="{ 'auth-key-pill-disabled': field.enabled === false }">{{ field.inject_type }}</span>
+                  <span class="detail-value text-code truncate-value" :class="{ 'text-code-disabled': field.enabled === false }" :title="field.enabled === false ? '该凭证已被禁用，登录时将不注入该字段' : String(field.value)">
+                    {{ field.enabled === false ? '已禁用' : (field.value || '未配置') }}
+                  </span>
+                  <button class="btn-copy-mini" @click="copyText(String(field.value))" v-if="field.value && field.enabled !== false">复制</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 🚀 远程部署配置 -->
+        <div class="detail-section">
+          <h4 class="section-title">🚀 远程部署配置</h4>
+          <div class="detail-grid">
+            <div class="detail-row">
               <span class="detail-label">远程部署目录</span>
               <div class="detail-content">
                 <span class="detail-value text-code">{{ envConfig.remote_dir || '未配置' }}</span>
@@ -147,16 +217,10 @@ defineExpose({
           </div>
         </div>
 
-        <div class="detail-section">
-          <h4 class="section-title">🔑 登录凭证</h4>
+        <!-- 4. 🌐 一键登录配置 -->
+        <div class="detail-section" v-if="envConfig.login_url || envConfig.online_username">
+          <h4 class="section-title">🌐 一键登录配置</h4>
           <div class="detail-grid">
-            <div class="detail-row">
-              <span class="detail-label">鉴权方式</span>
-              <span class="detail-value text-important">
-                {{ Array.from(new Set(normalizeCredentialFields(envConfig.credentials).map(item => item.inject_type || 'cookie'))).join(' / ') || '未配置' }}
-              </span>
-            </div>
-
             <div class="detail-row" v-if="envConfig.login_url">
               <span class="detail-label">登录直达链接</span>
               <div class="detail-content">
@@ -177,30 +241,12 @@ defineExpose({
               <span class="detail-label">登录浏览器</span>
               <div class="detail-content">
                 <span class="detail-value text-important" style="color: #38bdf8;">
-                  {{ envConfig.login_browser === 'msedge' ? 'edge' : '谷歌' }}
+                  {{ envConfig.login_browser === 'msedge' ? 'Microsoft Edge' : 'Chrome / Chromium' }}
                 </span>
               </div>
             </div>
           </div>
-
-          <!-- 子项目动态凭证值 -->
-          <div class="dynamic-credentials" v-if="normalizeCredentialFields(envConfig.credentials).length > 0">
-            <h5 class="sub-section-title">免密凭证注入明细</h5>
-            <div class="detail-grid">
-              <div class="detail-row" v-for="field in normalizeCredentialFields(envConfig.credentials)" :key="field.key">
-                <span class="detail-label">{{ field.key }}</span>
-                <div class="detail-content">
-                  <span class="auth-key-pill">{{ field.inject_type }}</span>
-                  <span class="detail-value text-code truncate-value" :title="String(field.value)">{{ field.value || '未配置' }}</span>
-                  <button class="btn-copy-mini" @click="copyText(String(field.value))" v-if="field.value">复制</button>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-
-
-
       </div>
 
       <div class="modal-footer">
@@ -374,5 +420,50 @@ defineExpose({
   display: inline-block;
 }
 
+.cred-detail-disabled {
+  opacity: 0.65;
+}
 
+.text-disabled-through {
+  text-decoration: line-through;
+  color: var(--text-muted) !important;
+}
+
+.cred-disabled-hint-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.auth-key-pill-disabled {
+  background: rgba(120, 120, 120, 0.1) !important;
+  color: var(--text-muted) !important;
+}
+
+.text-code-disabled {
+  background: rgba(120, 120, 120, 0.04) !important;
+  color: var(--text-muted) !important;
+  cursor: not-allowed;
+}
+
+.btn-copy-mini {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.auth-key-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+}
 </style>

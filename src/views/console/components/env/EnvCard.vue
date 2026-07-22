@@ -1,7 +1,11 @@
 <script setup>
+/**
+ * @file EnvCard.vue
+ * @description 单个项目环境在列表中所对应的表格行组件，提供服务启停、一键免密登录、远程分支获取/切换及环境配置修改等核心交互行为
+ */
 import { ref, onMounted, watch, computed } from 'vue'
-import BranchSwitchModal from './BranchSwitchModal.vue'
-import { copyToClipboard } from '../../../utils/platform'
+import BranchSwitchModal from '../project/BranchSwitchModal.vue'
+import { copyToClipboard } from '../../../../utils/platform'
 
 // 声明 Props 验证
 const props = defineProps({
@@ -32,9 +36,9 @@ const displayName = computed(() => props.name)
 const hasLoginCredential = computed(() => {
   const creds = props.config.credentials || []
   if (Array.isArray(creds)) {
-    return creds.some(item => item && item.key && item.value)
+    return creds.length > 0
   }
-  return Object.values(creds).some(Boolean)
+  return Object.keys(creds).length > 0
 })
 const credentialFields = computed(() => {
   const creds = props.config.credentials || {}
@@ -51,9 +55,20 @@ const credentialTypesText = computed(() => {
   const types = new Set(credentialFields.value.map(item => item.inject_type || 'cookie'))
   return Array.from(types).join(' / ')
 })
+const isCredentialsComplete = computed(() => {
+  const creds = props.config.credentials || []
+  if (Array.isArray(creds)) {
+    const activeCreds = creds.filter(item => item && item.key && item.enabled !== false)
+    return !activeCreds.some(item => !String(item.value || '').trim())
+  }
+  const values = Object.values(creds)
+  if (values.length === 0) return true
+  return values.every(val => !!String(val || '').trim())
+})
 const launchDisabledReason = computed(() => {
   if (!props.config.VUE_DEV_HOST) return '请先填写页面代理源域名'
   if (!hasLoginCredential.value) return '请先填写登录凭证'
+  if (!isCredentialsComplete.value) return '请先填齐所有已启用的免密登录凭证字段的值'
   return ''
 })
 const canLaunch = computed(() => !launchDisabledReason.value)
@@ -63,7 +78,7 @@ const canLaunchOnline = computed(() => {
 })
 const launchOnlineDisabledReason = computed(() => {
   if (!props.config.login_url || !props.config.online_username || !props.config.online_password) {
-    return '请先在自动登录配置中填写完整的登录直达链接、线上登录账号与密码'
+    return '请先在一键登录配置中填写完整的登录直达链接、线上登录账号与密码'
   }
   return ''
 })
@@ -223,13 +238,17 @@ const handleStop = () => {
 }
 
 const handleLaunch = (type = 'online') => {
-  if (!canLaunch.value) {
-    triggerMessage(launchDisabledReason.value, 'warning')
-    return
-  }
   if (type === 'local') {
+    if (!canLaunch.value) {
+      triggerMessage(launchDisabledReason.value, 'warning')
+      return
+    }
     emit('launchLocalEnv')
   } else {
+    if (!canLaunchOnline.value) {
+      triggerMessage(launchOnlineDisabledReason.value, 'warning')
+      return
+    }
     emit('launchEnv')
   }
 }
@@ -264,6 +283,10 @@ onMounted(() => {
       <span class="port-badge" v-if="isRunning && port">
         <span class="badge-dot"></span>
         {{ port }}
+      </span>
+      <span class="port-badge offline" v-else-if="config.local_port">
+        <span class="badge-dot"></span>
+        {{ config.local_port }}
       </span>
       <span class="text-muted" v-else>-</span>
     </td>
@@ -452,6 +475,18 @@ td {
   padding: 1px 6px;
   border-radius: 12px;
   font-family: monospace;
+}
+
+.port-badge.offline {
+  background: rgba(120, 120, 120, 0.08);
+  color: var(--text-muted);
+  border-color: rgba(120, 120, 120, 0.2);
+}
+
+.port-badge.offline .badge-dot {
+  background-color: #94a3b8;
+  box-shadow: none;
+  animation: none;
 }
 
 .badge-dot {

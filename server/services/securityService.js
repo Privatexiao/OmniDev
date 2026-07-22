@@ -105,6 +105,10 @@ function loadVault() {
 function saveVault(data) {
   vaultCache = data;
   try {
+    const dir = path.dirname(VAULT_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(VAULT_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
   } catch (e) {
     console.error('[SecurityVault] 写入 vault.json 失败:', e.message);

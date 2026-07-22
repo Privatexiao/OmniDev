@@ -1,6 +1,6 @@
 /**
  * @file server/routes/envRoutes.js
- * @description 环境管理 API 路由。提供环境列表查询、配置新增/编辑/删除以及自动登录。
+ * @description 环境管理 API 路由。提供环境列表查询、配置新增/编辑/删除以及一键登录。
  *              一个项目对应一组扁平环境，环境键即 envName，不再区分主/子项目。
  */
 import express from 'express';
@@ -293,7 +293,7 @@ router.post('/api/envs/delete', (req, res) => {
 // ==================== POST /api/envs/autologin ====================
 
 router.post('/api/envs/autologin', (req, res) => {
-  const { envKey } = req.body;
+  const { envKey, targetType } = req.body;
   if (!envKey) {
     return res.status(400).json({ error: '未指定要自动登录的环境' });
   }
@@ -307,40 +307,87 @@ router.post('/api/envs/autologin', (req, res) => {
     }
 
     const { login_url, online_username, online_password, login_browser, credentials } = envConfig;
-    if (!login_url || !online_username || !online_password) {
-      return res.status(400).json({ error: '该环境尚未配置完整的自动登录参数（需提供登录地址、线上账号与密码）' });
+
+    let loginUrl = login_url;
+    if (targetType === 'local') {
+      const port = envPorts[envName] || envConfig.local_port;
+      if (!port) {
+        return res.status(400).json({ error: '本地环境尚未分配端口，请先启动开发服务' });
+      }
+      let subPath = envConfig.local_login_path || '';
+      if (subPath) {
+        subPath = subPath.trim();
+        if (subPath.startsWith('http://') || subPath.startsWith('https://')) {
+          try {
+            const urlObj = new URL(subPath);
+            subPath = urlObj.pathname + urlObj.search + urlObj.hash;
+          } catch (e) {
+            subPath = subPath.replace(/^https?:\/\/[^\/]+/, '');
+          }
+        }
+        if (subPath && !subPath.startsWith('/')) {
+          const slashIdx = subPath.indexOf('/');
+          if (slashIdx > 0) {
+            const firstPart = subPath.substring(0, slashIdx);
+            if (!firstPart.includes('#')) {
+              subPath = subPath.substring(slashIdx);
+            }
+          }
+        }
+      }
+      if (!subPath) {
+        const devHost = envConfig.VUE_DEV_HOST || '';
+        try {
+          if (devHost.startsWith('http://') || devHost.startsWith('https://')) {
+            const urlObj = new URL(devHost);
+            subPath = urlObj.pathname + urlObj.search + urlObj.hash;
+          } else if (devHost) {
+            subPath = devHost.startsWith('/') ? devHost : '/' + devHost;
+          }
+        } catch (e) {
+          subPath = '';
+        }
+      }
+      if (subPath && !subPath.startsWith('/')) {
+        subPath = '/' + subPath;
+      }
+      loginUrl = `http://localhost:${port}${subPath}`;
+    } else {
+      if (!loginUrl || !online_username || !online_password) {
+        return res.status(400).json({ error: '该环境尚未配置完整的一键登录参数（需提供登录地址、线上账号与密码）' });
+      }
     }
 
     const pyScriptPath = path.join(__dirname, '..', '..', 'scripts', 'auto_login.py');
     const configPayload = JSON.stringify({
-      login_url,
-      online_username,
-      online_password,
+      login_url: loginUrl,
+      online_username: targetType === 'local' ? '' : (online_username || ''),
+      online_password: targetType === 'local' ? '' : (online_password || ''),
       login_browser: login_browser || 'chrome',
       credentials: credentials || []
     });
 
-    writeLog(`[AutoLogin] 🚀 正在调起后台 Python-Playwright 自动填密登录，直达链接: ${login_url}`, envKey, 'System');
+    writeLog(`[OneClickLogin] 🚀 正在调起后台 Python-Playwright 自动填密一键登录，直达链接: ${loginUrl}`, envKey, 'System');
 
     const pyProcess = spawn('python', [pyScriptPath, configPayload]);
 
     pyProcess.stdout.on('data', (data) => {
       const logMsg = data.toString('utf-8').trim();
-      if (logMsg) writeLog(logMsg, envKey, 'AutoLogin');
+      if (logMsg) writeLog(logMsg, envKey, 'OneClickLogin');
     });
 
     pyProcess.stderr.on('data', (data) => {
       const errMsg = data.toString('utf-8').trim();
-      if (errMsg) writeLog(`[错误] ${errMsg}`, envKey, 'AutoLogin');
+      if (errMsg) writeLog(`[错误] ${errMsg}`, envKey, 'OneClickLogin');
     });
 
     pyProcess.on('close', (code) => {
-      writeLog(`[AutoLogin] 调试进程执行完毕，状态码: ${code}`, envKey, 'System');
+      writeLog(`[OneClickLogin] 调试进程执行完毕，状态码: ${code}`, envKey, 'System');
     });
 
-    res.json({ success: true, message: '自动登录后台浏览器引擎已成功启动！请随时在右侧"终端日志"中查看具体调试与运行进度。' });
+    res.json({ success: true, message: '一键登录后台浏览器引擎已成功启动！请随时在右侧"终端日志"中查看具体调试与运行进度。' });
   } catch (err) {
-    res.status(500).json({ error: '启动自动登录失败: ' + err.message });
+    res.status(500).json({ error: '启动一键登录失败: ' + err.message });
   }
 });
 

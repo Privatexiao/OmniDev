@@ -106,7 +106,16 @@ def smart_login(login_url, username, password, login_browser="auto", credentials
         # 1. 注入 Cookie 凭证到 context 中 (在导航前)
         if credentials:
             cookies_to_add = []
+            from urllib.parse import urlparse
+            try:
+                parsed_url = urlparse(login_url)
+                base_domain_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            except Exception:
+                base_domain_url = login_url
+
             for cred in credentials:
+                if cred.get('enabled') is False:
+                    continue
                 key = cred.get('key')
                 value = cred.get('value')
                 inject_type = cred.get('inject_type', 'cookie')
@@ -114,7 +123,7 @@ def smart_login(login_url, username, password, login_browser="auto", credentials
                     cookies_to_add.append({
                         "name": str(key),
                         "value": str(value),
-                        "url": login_url
+                        "url": base_domain_url
                     })
             if cookies_to_add:
                 try:
@@ -123,28 +132,43 @@ def smart_login(login_url, username, password, login_browser="auto", credentials
                 except Exception as e:
                     print(f"[AutoLogin] [凭证注入] 注入 Cookie 失败: {str(e)}")
 
-        page = context.new_page()
-
-        # 2. 注入 localStorage / sessionStorage (使用 add_init_script，在加载前)
+        # 2. 注入 localStorage / sessionStorage。初始化脚本必须在创建页面和导航前注册。
         if credentials:
-            js_script = ""
+            storage_credentials = []
             for cred in credentials:
+                if cred.get('enabled') is False:
+                    continue
                 key = cred.get('key')
                 value = cred.get('value')
                 inject_type = cred.get('inject_type', 'cookie')
-                if key and value is not None:
-                    # 避免在 JS 字符串中产生注入错误，简单进行单引号与换行转义
-                    escaped_value = str(value).replace("'", "\\'").replace("\n", "\\n")
-                    if inject_type == 'localStorage':
-                        js_script += f"localStorage.setItem('{key}', '{escaped_value}');\n"
-                    elif inject_type == 'sessionStorage':
-                        js_script += f"sessionStorage.setItem('{key}', '{escaped_value}');\n"
-            if js_script:
+                if key and value is not None and inject_type in ('localStorage', 'sessionStorage'):
+                    storage_credentials.append({
+                        'key': str(key),
+                        'value': str(value),
+                        'inject_type': inject_type
+                    })
+            if storage_credentials:
                 try:
-                    page.add_init_script(f"() => {{ {js_script} }}")
-                    print("[AutoLogin] [凭证注入] 成功挂载 localStorage / sessionStorage 底层注入脚本")
+                    storage_payload = json.dumps(storage_credentials, ensure_ascii=False)
+                    js_script = f"""
+                    (() => {{
+                      const credentials = {storage_payload};
+                      for (const credential of credentials) {{
+                        try {{
+                          const storage = credential.inject_type === 'sessionStorage'
+                            ? window.sessionStorage
+                            : window.localStorage;
+                          storage.setItem(credential.key, credential.value);
+                        }} catch (error) {{}}
+                      }}
+                    }})();
+                    """
+                    context.add_init_script(js_script)
+                    print("[AutoLogin] [凭证注入] 已在导航前挂载 localStorage / sessionStorage 注入脚本")
                 except Exception as e:
                     print(f"[AutoLogin] [凭证注入] 挂载缓存注入脚本失败: {str(e)}")
+
+        page = context.new_page()
         
         try:
             page.goto(login_url, timeout=30000)
@@ -219,8 +243,8 @@ def smart_login(login_url, username, password, login_browser="auto", credentials
                     except Exception:
                         continue
 
-            # 2. 如果账号密码框均已定位，一键瞬秒填入
-            if username_input and password_input:
+            # 2. 如果账号密码框均已定位且提供了账密，一键填入
+            if username and password and username_input and password_input:
                 print(f"[AutoLogin] 自动定位账号/密码框成功，正在极速填入账密...")
                 username_input.click()
                 username_input.fill(username)  # 一键灌入秒填
@@ -297,8 +321,8 @@ def main():
     login_browser = config.get("login_browser", "auto")
     credentials = config.get("credentials", [])
 
-    if not login_url or not username or not password:
-        print("[AutoLogin] 错误：缺少登录直达链接、线上账号或密码参数！")
+    if not login_url:
+        print("[AutoLogin] 错误：缺少登录直达链接参数！")
         sys.exit(1)
 
     smart_login(login_url, username, password, login_browser, credentials)

@@ -230,7 +230,9 @@ router.post('/api/app-config', (req, res) => {
       excludeDirs: Array.isArray(nextConfig.excludeDirs) ? nextConfig.excludeDirs : (currentConfig.excludeDirs || []),
       killServerOnClose: nextConfig.killServerOnClose !== undefined ? !!nextConfig.killServerOnClose : (currentConfig.killServerOnClose !== false),
       updateUrl: nextConfig.updateUrl !== undefined ? String(nextConfig.updateUrl).trim() : (currentConfig.updateUrl || ''),
-      autoCheckUpdate: nextConfig.autoCheckUpdate !== undefined ? !!nextConfig.autoCheckUpdate : (currentConfig.autoCheckUpdate !== false)
+      autoCheckUpdate: nextConfig.autoCheckUpdate !== undefined ? !!nextConfig.autoCheckUpdate : (currentConfig.autoCheckUpdate !== false),
+      logKeepType: nextConfig.logKeepType !== undefined ? String(nextConfig.logKeepType).trim() : (currentConfig.logKeepType || '3'),
+      logKeepDaysCustom: nextConfig.logKeepDaysCustom !== undefined ? parseInt(nextConfig.logKeepDaysCustom, 10) || 30 : (currentConfig.logKeepDaysCustom || 30)
     };
 
     fs.writeFileSync(APP_CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
@@ -320,14 +322,19 @@ router.get('/api/system/check-update', async (req, res) => {
     const currentVersion = getCurrentVersion();
     const latestVersion = updateData.version || '0.0.0';
     const hasUpdate = isNewerVersion(currentVersion, latestVersion);
+    const platformUpdate = updateData.platforms?.['windows-x86_64'] || {};
+    const updateMode = updateData.updateMode === 'manual' ? 'manual' : 'automatic';
 
     res.json({
       success: true,
       currentVersion,
       latestVersion,
       hasUpdate,
+      updateMode,
+      updateUrl,
+      signatureAvailable: !!platformUpdate.signature,
       changelog: updateData.changelog || updateData.notes || '暂无更新日志。',
-      downloadUrl: updateData.downloadUrl || (updateData.platforms?.['windows-x86_64']?.url) || ''
+      downloadUrl: updateData.downloadUrl || platformUpdate.url || ''
     });
   } catch (err) {
     // 💡 开发者调试痛点解决：网络超时或服务未部署等技术报错，在后端命令行终端清晰打印诊断日志
@@ -340,192 +347,10 @@ router.get('/api/system/check-update', async (req, res) => {
       currentVersion,
       latestVersion: currentVersion,
       hasUpdate: false,
+      updateMode: 'automatic',
+      signatureAvailable: false,
       changelog: '无法连接到更新服务器。'
     });
-  }
-});
-
-// ==================== 应用内静默下载与安全覆盖安装 ====================
-
-let downloadProgress = {
-  status: 'idle', // 'idle' | 'downloading' | 'completed' | 'error'
-  percent: 0,
-  total: 0,
-  transferred: 0,
-  error: null,
-  filePath: ''
-};
-
-/**
- * 🚀 支持多级重定向 (301/302/307/308) 自动追踪的文件流式下载器
- */
-function downloadFile(url, destPath, onProgress) {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
-    protocol.get(url, (res) => {
-      // 追踪 HTTP 3xx 跳转以兼容网盘或 GitHub Releases 的 CDN 跳转
-      if ([301, 302, 307, 308].includes(res.statusCode)) {
-        const redirectUrl = res.headers.location;
-        if (redirectUrl) {
-          return downloadFile(redirectUrl, destPath, onProgress).then(resolve).catch(reject);
-        }
-      }
-      if (res.statusCode !== 200) {
-        return reject(new Error(`下载失败，HTTP 状态码: ${res.statusCode}`));
-      }
-
-      const total = parseInt(res.headers['content-length'], 10) || 0;
-      const file = fs.createWriteStream(destPath);
-      let transferred = 0;
-
-      res.on('data', (chunk) => {
-        transferred += chunk.length;
-        if (onProgress) onProgress({ total, transferred });
-      });
-
-      res.pipe(file);
-
-      file.on('finish', () => {
-        file.close();
-        resolve();
-      });
-
-      file.on('error', (err) => {
-        fs.unlink(destPath, () => {}); // 物理删除残留垃圾文件
-        reject(err);
-      });
-
-      res.on('error', (err) => {
-        reject(err);
-      });
-    }).on('error', (err) => {
-      reject(err);
-    });
-  });
-}
-
-
-// 🚀 发起后台静默下载安装包请求
-router.post('/api/system/download-update', (req, res) => {
-  const { downloadUrl, version } = req.body;
-  if (!downloadUrl) return res.status(400).json({ error: '缺少下载链接' });
-  
-  if (downloadProgress.status === 'downloading') {
-    return res.json({ success: true, message: '已经在下载中...' });
-  }
-
-  const tempDir = path.join(path.dirname(PROJECTS_FILE_PATH), 'temp');
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
-
-  // 💡 动态分析文件名，支持版本号，并和用户自定义的包命名格式绝对对齐
-  let fileName = 'omnidev_setup.exe';
-  try {
-    const urlObj = new URL(downloadUrl);
-    const base = path.basename(urlObj.pathname);
-    if (base && base.endsWith('.exe')) {
-      fileName = base;
-    } else if (version) {
-      fileName = `OmniDev_Setup_${version}.exe`;
-    }
-  } catch (e) {
-    if (version) {
-      fileName = `OmniDev_Setup_${version}.exe`;
-    }
-  }
-
-  // 💡 物理安全隔离：下载前先把 temp 目录下任何可能残留的其他旧版 exe 安装包物理删除，防止目录凌乱占用
-  try {
-    if (fs.existsSync(tempDir)) {
-      const files = fs.readdirSync(tempDir);
-      files.forEach(f => {
-        if (f.endsWith('.exe')) {
-          fs.unlinkSync(path.join(tempDir, f));
-        }
-      });
-    }
-  } catch (e) {
-    console.warn('[Update] 清理旧安装包残留失败:', e.message);
-  }
-
-  const destPath = path.join(tempDir, fileName);
-
-  // 初始化状态
-  downloadProgress = {
-    status: 'downloading',
-    percent: 0,
-    total: 0,
-    transferred: 0,
-    error: null,
-    filePath: destPath
-  };
-
-
-  // 后台静默执行数据流接收
-  downloadFile(downloadUrl, destPath, (p) => {
-    downloadProgress.total = p.total;
-    downloadProgress.transferred = p.transferred;
-    downloadProgress.percent = p.total > 0 ? Math.round((p.transferred / p.total) * 100) : 0;
-  }).then(() => {
-    downloadProgress.status = 'completed';
-    downloadProgress.percent = 100;
-  }).catch((err) => {
-    downloadProgress.status = 'error';
-    downloadProgress.error = err.message;
-    console.error('[UpdateService] 下载更新包异常中断:', err.message);
-  });
-
-  res.json({ success: true, message: '下载任务已在后台启动' });
-});
-
-// 🚀 获取当前后台文件下载的百分比与状态进度
-router.get('/api/system/download-progress', (req, res) => {
-  res.json(downloadProgress);
-});
-
-// 🚀 拉起下载好的安装包并优雅关停当前后端（自动释放3300端口，供覆盖安装）
-router.post('/api/system/install-and-exit', (req, res) => {
-  const tempDir = path.join(path.dirname(PROJECTS_FILE_PATH), 'temp');
-  
-  // 💡 优先从内存状态中获取本次下载出的真实绝对物理路径
-  let exePath = downloadProgress.filePath;
-
-  // 💡 状态丢失自愈降级：如果服务中途重启导致内存 filePath 丢失，动态去临时目录探测搜索最合理的安装包进行拉起
-  if (!exePath || !fs.existsSync(exePath)) {
-    try {
-      if (fs.existsSync(tempDir)) {
-        const files = fs.readdirSync(tempDir);
-        const exeFile = files.find(f => f.endsWith('.exe'));
-        if (exeFile) {
-          exePath = path.join(tempDir, exeFile);
-        }
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  if (!exePath || !fs.existsSync(exePath)) {
-    return res.status(400).json({ error: '未检测到已下载完成的安装包，请重新下载' });
-  }
-
-
-  try {
-    // 💡 detached: true 与 child.unref() 彻底切断父子进程血缘，使新进程不随 Node 退出而消亡
-    const child = spawn('cmd.exe', ['/c', 'start', '', exePath], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false
-    });
-    child.unref();
-
-    res.json({ success: true, message: '已拉起安装向导，正在退出主控端...' });
-
-    // 💡 1秒后强退 Node 进程以释放端口与资源锁定，实现顺滑更新
-    setTimeout(() => {
-      process.exit(0);
-    }, 1000);
-  } catch (err) {
-    res.status(500).json({ error: '拉起安装向导失败: ' + err.message });
   }
 });
 
@@ -562,61 +387,5 @@ router.post('/api/system/open-log-dir', (req, res) => {
     res.status(500).json({ error: '无法打开日志目录: ' + err.message });
   }
 });
-
-// 📂 打开安装包所在的临时下载目录，并自动高亮选中安装包文件
-router.post('/api/system/open-temp-dir', (req, res) => {
-  const tempDir = path.join(path.dirname(PROJECTS_FILE_PATH), 'temp');
-  
-  // 💡 优先从内存状态中获取本次下载出的真实绝对物理路径
-  let exePath = downloadProgress.filePath;
-
-  // 💡 状态丢失自愈降级：如果服务中途重启导致内存 filePath 丢失，动态去临时目录探测搜索最合理的安装包进行高亮
-  if (!exePath || !fs.existsSync(exePath)) {
-    try {
-      if (fs.existsSync(tempDir)) {
-        const files = fs.readdirSync(tempDir);
-        const exeFile = files.find(f => f.endsWith('.exe'));
-        if (exeFile) {
-          exePath = path.join(tempDir, exeFile);
-        }
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  try {
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-  } catch (e) {
-    return res.status(500).json({ error: '读取临时下载目录失败: ' + e.message });
-  }
-
-  try {
-    let cmd, args;
-    const hasExe = exePath && fs.existsSync(exePath);
-    const targetPath = hasExe ? exePath : tempDir;
-
-    if (process.platform === 'win32') {
-      cmd = 'explorer.exe';
-      args = hasExe ? [`/select,`, targetPath] : [targetPath];
-    } else if (process.platform === 'darwin') {
-      cmd = 'open';
-      args = [tempDir];
-    } else {
-      cmd = 'xdg-open';
-      args = [tempDir];
-    }
-    
-    const child = (process.platform === 'win32' && hasExe)
-      ? spawn('explorer.exe', ['/select,', targetPath], { detached: true })
-      : spawn(cmd, args, { detached: true });
-      
-    child.unref();
-    res.json({ success: true, message: '已成功打开安装包所在文件夹', path: targetPath });
-  } catch (err) {
-    res.status(500).json({ error: '无法打开安装包文件夹: ' + err.message });
-  }
-});
-
 
 export default router;

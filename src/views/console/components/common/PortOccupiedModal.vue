@@ -1,5 +1,16 @@
 <script setup>
+/**
+ * @file PortOccupiedModal.vue
+ * @description 端口冲突处理模态框，当控制台 3300 服务端口被占用时弹出，支持一键强杀占用进程或动态修改并切换到新端口
+ */
 import { ref, watch, computed } from 'vue'
+
+const props = defineProps({
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const emit = defineEmits(['success', 'message'])
 
@@ -31,6 +42,12 @@ const show = (port) => {
 
 const hide = () => {
   visible.value = false
+}
+
+const handleOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    hide()
+  }
 }
 
 // 🚀 校验端口输入是否符合 TCP 规范
@@ -85,7 +102,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="modal-overlay" v-if="visible" @click.self="hide">
+  <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content animate-zoom" style="max-width: 440px; border: 1px solid rgba(239, 68, 68, 0.3);">
       <div class="modal-header">
         <h3 class="title-warning">⚠️ 端口冲突警告</h3>

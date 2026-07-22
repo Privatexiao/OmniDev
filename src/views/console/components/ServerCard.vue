@@ -2,17 +2,25 @@
 import { ref, watch } from 'vue'
 
 const props = defineProps({
-  sshInfo: { type: Object, default: () => ({}) }
+  sshInfo: { type: Object, default: () => ({}) },
+  closeOnOverlayClick: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['updated'])
 
 const showDetail = ref(false)
 const showModal = ref(false)
+const showPassword = ref(false)
 const testing = ref(false)
 const testResult = ref('')
 const testSuccess = ref(false)
 const saving = ref(false)
+
+const handleOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    showModal.value = false
+  }
+}
 
 const form = ref({
   host: '',
@@ -21,6 +29,46 @@ const form = ref({
   password: '',
   remote_path: ''
 })
+
+const sshHistory = ref([])
+const selectedHistoryIndex = ref('')
+
+const loadSSHHistory = async () => {
+  try {
+    const res = await fetch('/api/ssh/history')
+    if (res.ok) {
+      const data = await res.json()
+      sshHistory.value = data.history || []
+    }
+  } catch (err) {
+    console.error('获取历史 SSH 配置失败:', err)
+  }
+}
+
+const applyHistoryConfig = (index) => {
+  if (index === '' || index === null || index === undefined) return
+  const selected = sshHistory.value[index]
+  if (selected) {
+    form.value = {
+      host: selected.host || '',
+      port: selected.port || 22,
+      username: selected.username || '',
+      password: selected.password || '',
+      remote_path: selected.remote_path || ''
+    }
+  }
+}
+
+const clearHistorySelection = () => {
+  selectedHistoryIndex.value = ''
+  form.value = {
+    host: '',
+    port: 22,
+    username: '',
+    password: '',
+    remote_path: ''
+  }
+}
 
 watch(() => props.sshInfo, (info) => {
   testResult.value = ''
@@ -34,7 +82,9 @@ const openModal = () => {
     password: props.sshInfo.password || '',
     remote_path: props.sshInfo.remote_path || ''
   }
+  selectedHistoryIndex.value = ''
   testResult.value = ''
+  loadSSHHistory()
   showModal.value = true
 }
 
@@ -175,13 +225,35 @@ const hasSSH = () => !!(props.sshInfo && props.sshInfo.host)
 
   <!-- SSH 配置弹窗 -->
   <Teleport to="body">
-    <div class="modal-overlay" v-if="showModal" @click.self="showModal = false">
+    <div class="modal-overlay" v-if="showModal" @click.self="handleOverlayClick">
       <div class="glass-card modal-content ssh-modal animate-zoom">
         <div class="modal-header">
           <h3>🔌 SSH 远程连接配置</h3>
           <button class="btn-close" @click="showModal = false">✕</button>
         </div>
         <div class="modal-body">
+          <div class="form-group" v-if="sshHistory.length > 0" style="margin-bottom: 16px;">
+            <label>⚡ 快速套用历史项目 SSH 配置</label>
+            <div class="select-wrapper-with-clear" style="display: flex; gap: 8px; align-items: center;">
+              <select v-model="selectedHistoryIndex" class="form-control" @change="applyHistoryConfig(selectedHistoryIndex)" style="border-color: var(--primary); background: rgba(99, 102, 241, 0.03); font-weight: 600; flex: 1;">
+                <option value="" disabled>-- 选择已有配置进行一键填充 --</option>
+                <option v-for="(item, idx) in sshHistory" :key="idx" :value="idx">
+                  [{{ item.projectName }}] - {{ item.username }}@{{ item.host }}:{{ item.port }}
+                </option>
+              </select>
+              <button 
+                v-if="selectedHistoryIndex !== ''"
+                type="button" 
+                class="btn-clear-history" 
+                @click="clearHistorySelection" 
+                title="清除选择并清空表单"
+                style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 6px; padding: 0; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>服务器地址</label>
             <input v-model="form.host" type="text" class="form-control" placeholder="192.168.1.10" />
@@ -196,13 +268,14 @@ const hasSSH = () => !!(props.sshInfo && props.sshInfo.host)
               <input v-model="form.username" type="text" class="form-control" placeholder="deploy" />
             </div>
           </div>
-          <div class="form-group">
+          <div class="form-group password-group">
             <label>密码</label>
-            <input v-model="form.password" type="password" class="form-control" placeholder="输入远程登录密码..." autocomplete="new-password" />
-          </div>
-          <div class="form-group">
-            <label>远程项目路径（用于测试环境是否能连接）</label>
-            <input v-model="form.remote_path" type="text" class="form-control" placeholder="/var/www/project" />
+            <div class="password-input-wrapper">
+              <input v-model="form.password" :type="showPassword ? 'text' : 'password'" class="form-control" placeholder="输入远程登录密码..." autocomplete="new-password" />
+              <button type="button" class="btn-toggle-password-input" @click="showPassword = !showPassword" :title="showPassword ? '隐藏密码' : '显示密码'">
+                {{ showPassword ? '🙈' : '👁️' }}
+              </button>
+            </div>
           </div>
 
           <div v-if="testResult" class="ssh-result-box" :class="{ success: testSuccess }" style="margin-top:12px">
@@ -408,5 +481,39 @@ const hasSSH = () => !!(props.sshInfo && props.sshInfo.host)
 @keyframes zoomIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.password-input-wrapper .form-control {
+  padding-right: 36px;
+  width: 100%;
+}
+.btn-toggle-password-input {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.btn-toggle-password-input:hover {
+  opacity: 1;
+}
+.btn-clear-history:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
 }
 </style>

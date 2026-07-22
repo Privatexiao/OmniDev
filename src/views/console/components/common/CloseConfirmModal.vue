@@ -1,5 +1,16 @@
 <script setup>
+/**
+ * @file CloseConfirmModal.vue
+ * @description 客户端关闭确认弹窗，提供最小化至系统托盘或彻底退出系统的选项，并支持记住关闭偏好设置
+ */
 import { ref, watch } from 'vue'
+
+const props = defineProps({
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const emit = defineEmits(['confirm'])
 
@@ -29,6 +40,12 @@ const hide = () => {
   visible.value = false
 }
 
+const handleOverlayClick = () => {
+  if (props.closeOnOverlayClick) {
+    hide()
+  }
+}
+
 // 🚀 抛出用户选择的选择及“是否记住”状态
 const confirm = (choice) => {
   visible.value = false
@@ -47,7 +64,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="modal-overlay" v-if="visible" @click.self="hide">
+  <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content animate-zoom" style="max-width: 420px; border: 1px solid rgba(99, 102, 241, 0.25);">
       <div class="modal-header">
         <h3>关闭 OmniDev</h3>

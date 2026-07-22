@@ -11,7 +11,7 @@
 ## ✨ 核心能力
 
 - **多项目隔离**：登记多个本地项目，一键切换激活；每个项目的环境/端口/凭证配置物理隔离，互不污染。
-- **多环境一键启停**：自动分配空闲端口（8080+）、自动探测并切换 Node 版本（`fnm`）、自动匹配启动脚本，跨 Windows / macOS / Linux 拉起本地开发服务。
+- **多环境一键启停**：自动分配空闲端口（8080+）、按环境配置强制使用 Node 版本（未配置时才自动探测）、自动匹配启动脚本，跨 Windows / macOS / Linux 拉起本地开发服务；指定版本不可用时直接停止，不会降级到系统 Node。
 - **凭证安全注入**：登录凭证经 AES 加密存入本地保险库；启动时以**进程级环境变量**注入（绝不写入业务项目任何文件），或前端注入 Cookie / localStorage / sessionStorage 后直达登录。
 - **浏览器免密登录**：调起 Python + Playwright 自动识别表单并填密登录，依赖缺失自动自愈安装。
 - **远程 SSH 辅助**：长连接池复用，远程 Git 分支查询/强力干净切换、远程命令下发，本地/远程日志分流落盘。
@@ -131,11 +131,19 @@ Tauri 版本号直接从仓库根目录 `version.json` 读取。打包前会执�
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.3",
+  "updateMode": "automatic",
   "changelog": "优化了一下问题",
-  "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe"
+  "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe",
+  "updaterSignature": "打包后生成的 .sig 文件内容"
 }
 ```
+
+- `updateMode: "automatic"`：小版本默认策略，用户点击更新后直接在应用内下载、签名校验、静默安装并重启，不再弹出重大版本确认。
+- `updateMode: "manual"`：大版本或高风险变更，先弹窗确认，再执行同一套签名更新流程。
+- 更新策略由发布者显式指定，不根据语义化版本号自动推断，避免特殊发布被错误处理。
+
+> 当前前端和 Node 资源仍随 Tauri 安装包发布，因此 `automatic` 表示“应用内静默覆盖安装并重启”，不等同于无需重启的前端资源热替换。若后续需要真正热更新，必须先将可更新资源外置，并增加版本回滚和完整性校验机制。
 
 `version.json` 会驱动以下位置：
 
@@ -143,7 +151,7 @@ Tauri 版本号直接从仓库根目录 `version.json` 读取。打包前会执�
 - `package-lock.json` 根版本
 - `src-tauri/tauri.conf.json.version`（直接指向 `../version.json`，支持 `npx tauri build`）
 - `src-tauri/Cargo.toml` 的 `package.version`
-- `update.json.version`、`update.json.changelog`、`update.json.downloadUrl`
+- `update.json` 的版本、更新策略、日志、下载地址和 Tauri 平台签名
 - 后端更新检查接口的当前版本
 
 常用命令：
@@ -151,15 +159,50 @@ Tauri 版本号直接从仓库根目录 `version.json` 读取。打包前会执�
 ```powershell
 npm run version:sync   # 手动同步所有派生版本文件
 npm run version:check  # 校验所有版本号是否一致
-npx tauri build        # Tauri 打包；会读取 version.json，并在 beforeBuildCommand 中执行 npm run build
+npm run tauri:build    # Tauri 打包；会读取 version.json，并在 beforeBuildCommand 中执行 npm run build
 ```
 
-发布前检查：
+### 首次启用签名更新
 
-- 确认不会把 `config/`、`vault.json`、真实 SSH 信息、本机路径打入生产包。
-- 确认 `dist-server/config` 来源为 `config.example/`。
-- 确认 `update.json.downloadUrl` 指向本次 Release 的安装包。
-- 执行 `npm run version:check` 并确认版本号一致后再发布安装包。
+以下步骤只执行一次：
+
+1. 在仓库外生成并永久备份 updater 密钥。当前项目约定放在同级的 `OmniDev-key/` 目录：
+
+   ```powershell
+   npx tauri signer generate -w "..\OmniDev-key\omnidev-updater.key"
+   ```
+
+2. 将生成的公钥完整内容替换到 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。这里填写公钥内容，不是公钥文件路径。
+3. 私钥及密码不得提交到仓库。项目 `.gitignore` 已过滤常见密钥、证书、`.env` 和 `.sig` 文件作为第二道保护，但私钥仍必须存放在仓库外。私钥丢失后，已安装客户端将无法验证后续更新；如需轮换密钥，应先用旧密钥发布一个内置新公钥的过渡版本。
+
+### 一键发布
+
+发布脚本会自动读取项目同级 `OmniDev-key/omnidev-updater.key`，当前本机无需再设置私钥环境变量，只需执行：
+
+```powershell
+npm run release
+```
+
+脚本会依次询问目标版本号和中文更新说明，然后自动修改并同步版本、判断更新模式、签名打包、查找 NSIS `.exe.sig`、回填签名和执行最终校验。主版本号变化默认使用 `manual`，其余版本默认使用 `automatic`；高风险版本可显式覆盖：
+
+```powershell
+npm run release -- --manual
+npm run release -- --automatic
+```
+
+执行前可安全预览，不修改文件也不打包：
+
+```powershell
+npm run release -- --dry-run
+```
+
+交互模式可避免 Windows npm 转发中文参数时出现编码问题；CI 等非交互环境可直接执行 `node scripts/release.js <版本号> <更新说明> [选项]`。
+
+如果私钥存放在其他位置，可设置 `TAURI_SIGNING_PRIVATE_KEY_PATH`。本机默认密钥使用空密码，脚本会显式传入空密码以避免 Tauri 弹出交互提示；如果生成密钥时设置了非空密码，则需在运行发布命令前设置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+
+命令成功后，终端会列出安装包和 `.sig` 的准确路径。只需先将这两个文件上传到对应 GitHub Release，确认安装包 URL 可访问，再最后发布 `update.json`。签名已由脚本自动回填，不要再次打包。
+
+发布前仍需确认不会把 `config/`、`vault.json`、真实 SSH 信息和本机路径打入生产包，并确认 `dist-server/config` 来源为 `config.example/`。最后使用上一个正式版本完成一次真实升级验证。故障版本不要覆盖同版本安装包，应发布更高版本修复。
 
 ---
 
@@ -170,12 +213,19 @@ npx tauri build        # Tauri 打包；会读取 version.json，并在 beforeBu
 3. **并发竞态防刷**：SSH 测试/连接/断开等异步操作配 UI 禁用锁 + 后端死链清理 + 退出竞态标志位，防高频点击引发长连接死锁。
 4. **凭证脱敏与 XSS 免疫**：敏感凭证 AES 加密落库、物理文件脱敏、接口返回二次脱敏；终端日志回显全程 Vue 安全插值，100% 禁用 `v-html`。
 
+## ⚡ 性能与健壮性设计
+
+1. **内存缓存与 I/O 避障**：在日志服务中引入内存级日志目录检查缓存，避免高频日志写入引发高负载同步 I/O 检测；将历史日志清理（`cleanOldLogs`）重构为异步 `fs.promises` 并行执行，防止扫描及删除大批文件时卡死 Node.js 事件循环。
+2. **多环境日志 Map 物理隔离**：升级前缀合并状态判定，由单全局变量改为基于 Map 按文件路径物理隔离记录，彻底治愈多项目/多环境交错输出日志时合并标题覆盖失效的问题。
+3. **前置管道匹配过滤**：Windows 平台 PID 反查通过对 `netstat -ano` 执行 `findstr` 前置端口过滤，避免拉取及逐行分割解析全网数万行网络连接数据，降低 CPU 及内存峰值。
+4. **签名更新与重复触发锁**：安装包由 Tauri updater 下载并校验签名，前端展示真实下载进度并锁定更新操作，避免连续点击重复启动安装。
+
 注意事项：
 
 - 本项目面向本地开发环境，不应暴露到公网或局域网。
 - 后端接口默认用于本机控制台调用；如调整监听地址、代理或 CORS，需要重新评估访问控制。
 - Tauri 当前 CSP 配置为 `null`，如引入远程页面或第三方脚本，需要补充 CSP。
-- 更新下载依赖 `version.json.downloadUrlTemplate` 生成的 `update.json.downloadUrl`，发布方应保证下载地址可信。
+- 更新客户端读取 `update.json.platforms.windows-x86_64` 中的下载地址和签名，只安装通过 `tauri.conf.json` 公钥校验的更新包；旧的顶层 `downloadUrl` 仅用于兼容尚未升级到签名更新器的历史版本。
 - AES 主密钥存放在用户目录，能保护配置文件泄漏场景，但不能抵御本机账户已被完全控制的场景。
 
 ---

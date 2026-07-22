@@ -1,4 +1,8 @@
 <script setup>
+/**
+ * @file ThemeSwitcher.vue
+ * @description 客户端主题切换胶囊组件，支持切换亮色、暗色和跟随系统，并分发双向绑定的更新事件
+ */
 // 声明 Props 并指定 Type 与 Default 默认值
 defineProps({
   modelValue: {

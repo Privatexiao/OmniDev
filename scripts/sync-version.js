@@ -29,8 +29,10 @@ function requireVersionInfo() {
 
   return {
     version,
+    updateMode: info.updateMode === 'manual' ? 'manual' : 'automatic',
     changelog: String(info.changelog || '').trim(),
-    downloadUrlTemplate: String(info.downloadUrlTemplate || '').trim()
+    downloadUrlTemplate: String(info.downloadUrlTemplate || '').trim(),
+    updaterSignature: String(info.updaterSignature || '').trim()
   };
 }
 
@@ -85,11 +87,21 @@ function syncUpdateJson(info) {
   const update = fs.existsSync(filePath) ? readJson(filePath) : {};
 
   update.version = info.version;
+  update.updateMode = info.updateMode;
   if (info.changelog) {
     update.changelog = info.changelog;
+    update.notes = info.changelog;
   }
   if (info.downloadUrlTemplate) {
-    update.downloadUrl = renderTemplate(info.downloadUrlTemplate, info.version);
+    const downloadUrl = renderTemplate(info.downloadUrlTemplate, info.version);
+    update.downloadUrl = downloadUrl;
+    update.platforms = {
+      ...(update.platforms || {}),
+      'windows-x86_64': {
+        url: downloadUrl,
+        signature: info.updaterSignature
+      }
+    };
   }
 
   writeJson(filePath, update);
