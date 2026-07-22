@@ -64,6 +64,10 @@ const updateActionText = computed(() => {
     : '⚡ 应用内更新并重启'
 })
 
+const updateErrorText = computed(() => {
+  return updateResult.value?.error || '无法连接更新服务器，请检查网络后重试。'
+})
+
 const manualCheckUpdate = async () => {
   checkingUpdate.value = true
   updateResult.value = null
@@ -75,11 +79,11 @@ const manualCheckUpdate = async () => {
     currentVersion.value = data.currentVersion || '--'
   } catch (err) {
     updateResult.value = {
-      success: true,
+      success: false,
       currentVersion: '--',
-      latestVersion: '--',
+      latestVersion: null,
       hasUpdate: false,
-      changelog: '无法连接更新服务器。'
+      error: '更新检查请求失败，请确认本地服务和网络连接正常。'
     }
   } finally {
     checkingUpdate.value = false
@@ -126,7 +130,11 @@ onMounted(() => {
 
     <!-- 检查更新结果 -->
     <div v-if="updateResult" class="update-result-card animate-fade-in" style="margin-top: 16px; background: rgba(0, 0, 0, 0.03); border: 1px solid rgba(120, 120, 120, 0.1); border-radius: 8px; padding: 14px;">
-      <div v-if="updateResult.hasUpdate" class="update-found">
+      <div v-if="updateResult.success === false" class="update-check-error">
+        <p class="update-error-title">⚠️ 更新检查失败</p>
+        <p class="update-error-detail">{{ updateErrorText }}</p>
+      </div>
+      <div v-else-if="updateResult.hasUpdate" class="update-found">
         <div class="update-found-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
           <span class="update-badge" style="background: #ef4444; color: #ffffff; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px;">NEW</span>
           <span class="update-title" style="font-size: 13px; font-weight: 700;">发现新版本 v{{ updateResult.latestVersion }} !</span>
@@ -183,6 +191,20 @@ onMounted(() => {
 .update-signature-warning {
   margin: 8px 0 0;
   color: #ef4444;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.update-error-title {
+  margin: 0;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.update-error-detail {
+  margin: 6px 0 0;
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.5;
 }

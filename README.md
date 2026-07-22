@@ -145,6 +145,8 @@ Tauri 版本号直接从仓库根目录 `version.json` 读取。打包前会执�
 
 > 当前前端和 Node 资源仍随 Tauri 安装包发布，因此 `automatic` 表示“应用内静默覆盖安装并重启”，不等同于无需重启的前端资源热替换。若后续需要真正热更新，必须先将可更新资源外置，并增加版本回滚和完整性校验机制。
 
+`0.1.4` 是首个启用 Tauri 签名更新的版本。更早版本没有 updater 公钥和签名校验能力，需要手动安装一次 `0.1.4` 或更高版本完成迁移；之后才能使用应用内签名更新。
+
 `version.json` 会驱动以下位置：
 
 - `package.json.version`
@@ -201,6 +203,8 @@ npm run release -- --dry-run
 如果私钥存放在其他位置，可设置 `TAURI_SIGNING_PRIVATE_KEY_PATH`。本机默认密钥使用空密码，脚本会显式传入空密码以避免 Tauri 弹出交互提示；如果生成密钥时设置了非空密码，则需在运行发布命令前设置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
 
 命令成功后，终端会列出安装包和 `.sig` 的准确路径。只需先将这两个文件上传到对应 GitHub Release，确认安装包 URL 可访问，再最后发布 `update.json`。签名已由脚本自动回填，不要再次打包。
+
+更新检查默认先访问 `config/app.json.updateUrl`，GitHub raw 地址连接失败时会重试并自动尝试 jsDelivr 与 GitHub API。检查成功后，主源和可直接返回清单的备用源会一并交给 Tauri updater；任一来源下载到的安装包都必须通过同一公钥签名校验。所有更新源均失败时，设置页会明确显示“更新检查失败”并保留真实当前版本，不再将网络错误伪装成“已是最新版”。
 
 发布前仍需确认不会把 `config/`、`vault.json`、真实 SSH 信息和本机路径打入生产包，并确认 `dist-server/config` 来源为 `config.example/`。最后使用上一个正式版本完成一次真实升级验证。故障版本不要覆盖同版本安装包，应发布更高版本修复。
 

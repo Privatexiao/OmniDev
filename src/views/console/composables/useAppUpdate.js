@@ -22,8 +22,10 @@ export function useAppUpdate(appConfig, showMessage) {
       if (appConfig.value?.autoCheckUpdate === false) return
 
       const res = await fetch('/api/system/check-update')
-      if (!res.ok) return
       const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `更新检查失败，HTTP ${res.status}`)
+      }
       if (data.success && data.hasUpdate) {
         const ignoredVersion = localStorage.getItem('omnidev_ignored_version')
         if (ignoredVersion !== data.latestVersion) {
@@ -80,11 +82,16 @@ export function useAppUpdate(appConfig, showMessage) {
     downloadError.value = null
     try {
       await ensureProgressListener()
-      const endpoint = updateInfo.updateUrl || appConfig.value?.updateUrl || ''
-      const separator = endpoint.includes('?') ? '&' : '?'
-      const updateUrl = endpoint ? `${endpoint}${separator}_t=${Date.now()}` : null
+      const endpoints = Array.isArray(updateInfo.updateUrls) && updateInfo.updateUrls.length
+        ? updateInfo.updateUrls
+        : [updateInfo.updateUrl || appConfig.value?.updateUrl || '']
+      const updateUrls = endpoints.filter(Boolean).map(endpoint => {
+        const separator = endpoint.includes('?') ? '&' : '?'
+        return `${endpoint}${separator}_t=${Date.now()}`
+      })
+      const updateUrl = updateUrls[0] || null
       showMessage('正在下载并校验签名更新，完成后将自动重启...', 'info')
-      await window.__TAURI__.core.invoke('install_app_update', { updateUrl })
+      await window.__TAURI__.core.invoke('install_app_update', { updateUrl, updateUrls })
     } catch (err) {
       downloadStatus.value = 'error'
       downloadError.value = String(err?.message || err || '未知错误')

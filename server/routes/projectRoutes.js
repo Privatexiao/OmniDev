@@ -5,13 +5,12 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import http from 'http';
-import https from 'https';
 import { spawn } from 'child_process';
 import { PROJECTS_FILE_PATH } from '../config/pathConfig.js';
 import { getGlobalSSHConfig } from '../services/sshService.js';
 import { loadAppConfig, clearAppConfigCache } from '../services/projectService.js';
 import { killActiveProcess, loadState } from '../services/processService.js';
+import { DEFAULT_UPDATE_URL, buildUpdateSources, fetchUpdateManifest } from '../services/updateService.js';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -259,31 +258,6 @@ function getCurrentVersion() {
 }
 
 /**
- * 🚀 原生 Node.js 兼容性 HTTP/HTTPS 请求工具方法，彻底杜绝跨域，免除第三方依赖
- */
-function httpGet(url) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    client.get(url, { timeout: 8000 }, (res) => {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        return reject(new Error(`请求失败，HTTP 状态码: ${res.statusCode}`));
-      }
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error(`解析更新源 JSON 失败: ${e.message}`));
-        }
-      });
-    }).on('error', (err) => {
-      reject(err);
-    });
-  });
-}
-
-/**
  * 🚀 语义化版本号比对算法 (x.y.z 规则)
  */
 function isNewerVersion(current, latest) {
@@ -311,19 +285,22 @@ router.get('/api/system/check-update', async (req, res) => {
 
     // 💡 默认更新源地址兜底（使用 GitHub 托管的 update.json raw 地址占位）
     if (!updateUrl) {
-      updateUrl = 'https://raw.githubusercontent.com/Privatexiao/OmniDev/main/update.json';
+      updateUrl = DEFAULT_UPDATE_URL;
     }
 
-    // 💡 增加时间戳防缓存机制，彻底解决 GitHub Raw CDN 缓存文件更新延迟的痛点
-    const separator = updateUrl.includes('?') ? '&' : '?';
-    const cleanUrl = `${updateUrl}${separator}_t=${Date.now()}`;
-
-    const updateData = await httpGet(cleanUrl);
+    const updateResult = await fetchUpdateManifest(updateUrl);
+    const updateData = updateResult.data;
     const currentVersion = getCurrentVersion();
     const latestVersion = updateData.version || '0.0.0';
     const hasUpdate = isNewerVersion(currentVersion, latestVersion);
     const platformUpdate = updateData.platforms?.['windows-x86_64'] || {};
     const updateMode = updateData.updateMode === 'manual' ? 'manual' : 'automatic';
+    const updateUrls = [...new Set([
+      updateResult.installUrl,
+      ...buildUpdateSources(updateUrl)
+        .filter(source => source.label !== 'github-api')
+        .map(source => source.installUrl)
+    ])];
 
     res.json({
       success: true,
@@ -331,7 +308,9 @@ router.get('/api/system/check-update', async (req, res) => {
       latestVersion,
       hasUpdate,
       updateMode,
-      updateUrl,
+      updateUrl: updateResult.installUrl,
+      updateUrls,
+      updateSource: updateResult.source,
       signatureAvailable: !!platformUpdate.signature,
       changelog: updateData.changelog || updateData.notes || '暂无更新日志。',
       downloadUrl: updateData.downloadUrl || platformUpdate.url || ''
@@ -340,16 +319,16 @@ router.get('/api/system/check-update', async (req, res) => {
     // 💡 开发者调试痛点解决：网络超时或服务未部署等技术报错，在后端命令行终端清晰打印诊断日志
     console.error(`[UpdateService] 检查更新源失败 (${req.query.updateUrl ? '测试源' : '默认源'}):`, err.message);
     
-    // 💡 普通用户友好体验：连接失败归为“不能更新”，优雅返回“无更新”的正常JSON，避免前台弹红色报错阻碍体验
     const currentVersion = getCurrentVersion();
-    res.json({
-      success: true,
+    res.status(502).json({
+      success: false,
       currentVersion,
-      latestVersion: currentVersion,
+      latestVersion: null,
       hasUpdate: false,
       updateMode: 'automatic',
       signatureAvailable: false,
-      changelog: '无法连接到更新服务器。'
+      errorCode: 'UPDATE_SOURCE_UNAVAILABLE',
+      error: '无法连接更新服务器，请检查网络后重试。'
     });
   }
 });

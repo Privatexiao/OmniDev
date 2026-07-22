@@ -110,21 +110,31 @@ pub fn run() {
 async fn install_app_update(
   app_handle: tauri::AppHandle,
   update_url: Option<String>,
+  update_urls: Option<Vec<String>>,
 ) -> Result<String, String> {
   let shutdown_handle = app_handle.clone();
   let mut updater_builder = app_handle
     .updater_builder()
     .on_before_exit(move || shutdown_node_server_raw(&shutdown_handle));
 
-  if let Some(endpoint_url) = update_url.filter(|value| !value.trim().is_empty()) {
-    if !endpoint_url.starts_with("https://") {
-      return Err("生产更新源必须使用 HTTPS".to_string());
-    }
-    let endpoint = endpoint_url
-      .parse()
-      .map_err(|err| format!("更新源 URL 无效: {}", err))?;
+  let endpoint_urls = update_urls
+    .filter(|values| !values.is_empty())
+    .unwrap_or_else(|| update_url.into_iter().collect());
+  if !endpoint_urls.is_empty() {
+    let endpoints = endpoint_urls
+      .into_iter()
+      .filter(|value| !value.trim().is_empty())
+      .map(|endpoint_url| {
+        if !endpoint_url.starts_with("https://") {
+          return Err("生产更新源必须使用 HTTPS".to_string());
+        }
+        endpoint_url
+          .parse()
+          .map_err(|err| format!("更新源 URL 无效: {}", err))
+      })
+      .collect::<Result<Vec<_>, _>>()?;
     updater_builder = updater_builder
-      .endpoints(vec![endpoint])
+      .endpoints(endpoints)
       .map_err(|err| format!("设置更新源失败: {}", err))?;
   }
 

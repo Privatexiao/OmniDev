@@ -51,7 +51,8 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3RTE5NENBMkVCQ0M4NTEKUldSUnlMd3V5cFRoeC96Y0t0UnVMRVNXeVB0TmtQMWFDaHBBNUYvRllGWVAxblVWbE9Vc0wyRmEK",
       "endpoints": [
-        "https://raw.githubusercontent.com/Privatexiao/OmniDev/main/update.json"
+        "https://raw.githubusercontent.com/Privatexiao/OmniDev/main/update.json",
+        "https://cdn.jsdelivr.net/gh/Privatexiao/OmniDev@main/update.json"
       ],
       "windows": {
         "installMode": "passive"
