@@ -144,7 +144,7 @@ defineExpose({
   -webkit-backdrop-filter: blur(16px);
 }
 
-:global([data-theme="light"]) .update-banner {
+:global([data-theme="light"] .update-banner) {
   border-color: rgba(99, 102, 241, 0.2);
   background: rgba(255, 255, 255, 0.85);
   box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.12), 0 8px 10px -6px rgba(99, 102, 241, 0.12);
@@ -172,7 +172,7 @@ defineExpose({
   -webkit-text-fill-color: transparent;
 }
 
-:global([data-theme="light"]) .update-banner-title {
+:global([data-theme="light"] .update-banner-title) {
   background: linear-gradient(135deg, var(--primary), #818cf8);
   background-clip: text;
   -webkit-background-clip: text;

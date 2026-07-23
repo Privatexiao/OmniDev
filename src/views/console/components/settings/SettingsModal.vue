@@ -95,6 +95,17 @@ const handleOverlayClick = () => {
   }
 }
 
+const waitForBackendReady = async () => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const res = await fetch('/api/app-config')
+      if (res.ok) return
+    } catch (e) { /* 等待新端口服务启动 */ }
+    await new Promise(resolve => setTimeout(resolve, 400))
+  }
+  throw new Error('新端口服务启动超时')
+}
+
 const saveSettings = async () => {
   if (savingAppConfig.value) return
   savingAppConfig.value = true
@@ -131,11 +142,28 @@ const saveSettings = async () => {
 
       await new Promise(resolve => setTimeout(resolve, 800))
 
+      let newBackendStartRequested = false
       try {
         const msg = await window.__TAURI__.core.invoke('start_backend_server')
+        newBackendStartRequested = true
+        window.__OMNIDEV_BACKEND_PORT__ = newPort
+        await waitForBackendReady()
         emit('message', { text: msg || `后端服务已成功重启并监听在 ${newPort} 端口！`, type: 'success' })
       } catch (err) {
-        emit('message', { text: '重启新端口服务失败: ' + err, type: 'danger' })
+        if (newBackendStartRequested) {
+          emit('message', { text: `新端口 ${newPort} 已发起启动，但健康检查超时，请稍后重试或重启 OmniDev：${err}`, type: 'danger' })
+          return
+        }
+        try {
+          await window.__TAURI__.core.invoke('save_server_port', { port: oldPort })
+          window.__OMNIDEV_BACKEND_PORT__ = oldPort
+          await window.__TAURI__.core.invoke('start_backend_server')
+          await waitForBackendReady()
+          emit('message', { text: `新端口启动失败，已恢复旧端口 ${oldPort}：${err}`, type: 'danger' })
+        } catch (rollbackErr) {
+          emit('message', { text: `新端口启动失败，旧端口也未能自动恢复：${err}；${rollbackErr}`, type: 'danger' })
+        }
+        return
       }
     } else {
       emit('message', { text: '设置已成功保存并立即生效！', type: 'success' })

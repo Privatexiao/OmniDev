@@ -7,9 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import net from 'net';
 import { appConfig } from './projectService.js';
-import { getCommonEnvs } from './envService.js';
 import { state, loadState as loadStateService, saveState as saveStateService } from './stateService.js';
-import { CONFIG_DIR, PROJECTS_FILE_PATH } from '../config/pathConfig.js';
+import { CONFIG_DIR, PROJECTS_FILE_PATH, getActiveProject } from '../config/pathConfig.js';
 
 // 运行态全局变量托管
 export let currentEnv = '';
@@ -78,6 +77,29 @@ export function getPortPid(port) {
 
 // 高频检测极速内存缓存字典：记录端口是否被占用，以及上一次探测的时间戳
 const portStatusCache = {};
+
+export function invalidatePortStatus(port) {
+  if (port) delete portStatusCache[Number(port)];
+}
+
+function killPortProcess(port) {
+  const portPid = getPortPid(port);
+  if (!portPid) {
+    invalidatePortStatus(port);
+    return null;
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /F /T /PID ${portPid}`, { stdio: 'ignore' });
+    } else {
+      execSync(`kill -9 ${portPid}`, { stdio: 'ignore' });
+    }
+  } finally {
+    invalidatePortStatus(port);
+  }
+  return portPid;
+}
 
 /**
  * 异步利用原生网络套接字，以毫秒级速度和 0% CPU 占用率静默探测本地端口是否开启
@@ -163,14 +185,14 @@ export function isPortAvailableAsync(port) {
 export async function getFirstFreePort(startPort = 8080) {
   let port = startPort;
   const maxPort = appConfig.maxPort || 8150;
-  while (port < maxPort) {
+  while (port <= maxPort) {
     const isAvailable = await isPortAvailableAsync(port);
     if (isAvailable) {
       return port;
     }
     port++;
   }
-  return startPort;
+  throw new Error(`端口范围 ${startPort}-${maxPort} 内没有可用端口`);
 }
 
 /**
@@ -205,18 +227,13 @@ export function killEnvProcess(env) {
   // 2. 强杀该环境所关联端口上的 PID
   const port = envPorts[envName] || envPorts[env];
   if (port) {
-    const portPid = getPortPid(port);
-    if (portPid) {
-      try {
-        if (process.platform === 'win32') {
-          execSync(`taskkill /F /PID ${portPid}`, { stdio: 'ignore' });
-        } else {
-          execSync(`kill -9 ${portPid}`, { stdio: 'ignore' });
-        }
+    try {
+      const portPid = killPortProcess(port);
+      if (portPid) {
         console.log(`[DevAssistant] 强杀环境 [${envName}] 残留端口 [${port}] 进程 (PID: ${portPid}) 成功`);
-      } catch (e) {
-        // 忽略
       }
+    } catch (e) {
+      // 进程可能已经结束，继续清理状态映射
     }
   }
 
@@ -224,6 +241,44 @@ export function killEnvProcess(env) {
   delete envPorts[envName];
   delete envPorts[env];
   saveState();
+}
+
+/**
+ * 精准关闭指定项目下的环境，避免全局状态气泡误操作当前项目的同名环境。
+ */
+export function killProjectEnvProcess(projectId, envName) {
+  if (!projectId || !envName) throw new Error('缺少项目或环境标识');
+
+  const projectsData = JSON.parse(fs.readFileSync(PROJECTS_FILE_PATH, 'utf-8'));
+  const project = (projectsData.projects || []).find(item => item.id === projectId);
+  if (!project) throw new Error(`项目 [${projectId}] 不存在`);
+
+  if (getActiveProject()?.id === projectId) {
+    const port = envPorts[envName] || null;
+    killEnvProcess(envName);
+    return { project, port };
+  }
+
+  const projectStatePath = path.join(CONFIG_DIR, 'projects', projectId, 'state.json');
+  if (!fs.existsSync(projectStatePath)) return { project, port: null };
+
+  const stateData = JSON.parse(fs.readFileSync(projectStatePath, 'utf-8'));
+  const projectPorts = stateData.envPorts || {};
+  const port = projectPorts[envName] || null;
+  if (port) {
+    try {
+      killPortProcess(port);
+    } catch (e) {
+      // 端口进程可能已经自行退出，仍需清理持久化状态
+    }
+  }
+  delete projectPorts[envName];
+  fs.writeFileSync(projectStatePath, JSON.stringify({
+    ...stateData,
+    envPorts: projectPorts
+  }, null, 2), 'utf-8');
+
+  return { project, port };
 }
 
 /**
@@ -269,6 +324,8 @@ export function killActiveProcess() {
               console.log(`[DevAssistant] 全局扫描强杀项目 [${proj.name}] 环境 [${envKey}] 端口 [${port}] 进程 (PID: ${portPid}) 成功`);
             } catch (e) {
               // 进程可能已经自行退出，忽略
+            } finally {
+              invalidatePortStatus(port);
             }
           }
 

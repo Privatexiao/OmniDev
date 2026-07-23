@@ -10,6 +10,8 @@ import { execFile, spawn } from 'child_process';
 import { CONFIG_DIR, PROJECTS_FILE_PATH, APP_CONFIG_PATH, getActiveProject } from '../config/pathConfig.js';
 import { getCommonEnvsConfig, normalizeCredentialFields, getCommonEnvs } from '../services/envService.js';
 import { securityService } from '../services/securityService.js';
+import { clearAppConfigCache } from '../services/projectService.js';
+import { loadState } from '../services/processService.js';
 
 const router = express.Router();
 
@@ -355,7 +357,13 @@ router.post('/api/config/import', (req, res) => {
       }
 
       // 写入更新后的项目清单 projects.json
+      const importedProjectIds = new Set(backupProjects.map(proj => proj.id));
+      if (configData.activeProjectId && importedProjectIds.has(configData.activeProjectId)) {
+        projectsData.activeProjectId = configData.activeProjectId;
+      }
       fs.writeFileSync(PROJECTS_FILE_PATH, JSON.stringify(projectsData, null, 2), 'utf-8');
+      clearAppConfigCache();
+      loadState();
 
       res.json({
         success: true,

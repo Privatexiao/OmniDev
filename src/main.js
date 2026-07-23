@@ -7,9 +7,11 @@ async function bootstrap() {
     try {
       const port = await window.__TAURI__.core.invoke('get_backend_port');
       const originalFetch = window.fetch;
+      window.__OMNIDEV_BACKEND_PORT__ = port;
       window.fetch = function (input, init) {
         if (typeof input === 'string' && input.startsWith('/api/')) {
-          input = `http://localhost:${port}${input}`;
+          const backendPort = window.__OMNIDEV_BACKEND_PORT__ || port;
+          input = `http://localhost:${backendPort}${input}`;
         }
         return originalFetch(input, init);
       };

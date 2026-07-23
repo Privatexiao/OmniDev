@@ -179,6 +179,10 @@ async fn install_app_update(
 fn start_backend_server_inner(app_handle: &tauri::AppHandle) -> Result<String, String> {
   let port = get_server_port(app_handle);
 
+  // 安装新版后，旧版 Node 后端可能仍在 IPv6 回环口常驻，导致 localhost 继续命中旧代码。
+  // 这里只清理由 OmniDev 打包资源 dist-server/server.js 启动且监听同一控制端口的 Node 进程。
+  stop_existing_packaged_backend(port);
+
   // 💡 高精强健校验：在拉起 Node 之前先尝试在目标端口建立 TCP 监听。若失败，证明端口被其它进程强占
   if std::net::TcpListener::bind(("127.0.0.1", port)).is_err() {
     return Err(format!("PORT_OCCUPIED:{}", port));
@@ -251,6 +255,29 @@ fn start_backend_server_inner(app_handle: &tauri::AppHandle) -> Result<String, S
   let port = get_server_port(app_handle);
   Ok(format!("后端服务正在启动 (端口 {})", port))
 }
+
+#[cfg(target_os = "windows")]
+fn stop_existing_packaged_backend(port: u16) {
+  use std::os::windows::process::CommandExt;
+  let script = format!(
+    "$items = Get-NetTCPConnection -LocalPort {} -State Listen -ErrorAction SilentlyContinue; \
+     foreach ($item in $items) {{ \
+       $proc = Get-CimInstance Win32_Process -Filter \"ProcessId=$($item.OwningProcess)\" -ErrorAction SilentlyContinue; \
+       if ($proc.Name -eq 'node.exe' -and $proc.CommandLine -match '[\\\\/]dist-server[\\\\/]server\\.js') {{ \
+         Stop-Process -Id $item.OwningProcess -Force -ErrorAction SilentlyContinue \
+       }} \
+     }}",
+    port
+  );
+  let _ = std::process::Command::new("powershell")
+    .args(&["-NoProfile", "-Command", &script])
+    .creation_flags(0x08000000)
+    .status();
+  std::thread::sleep(std::time::Duration::from_millis(350));
+}
+
+#[cfg(not(target_os = "windows"))]
+fn stop_existing_packaged_backend(_port: u16) {}
 
 /// 🚀 Tauri 前端可调用命令：前端手动点击启动后端服务
 #[tauri::command]

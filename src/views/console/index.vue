@@ -55,6 +55,7 @@ const globalRunningServices = ref([])
 const stoppingEnvName = ref('')
 const stopControlsLocked = ref(false)
 let stopUnlockTimer = null
+let envFetchSequence = 0
 
 // 🚀 多项目多分支管理状态
 const projects = ref([])
@@ -230,13 +231,14 @@ const setupSystemThemeListener = () => {
 const fetchProjects = async () => {
   try {
     const res = await fetch('/api/projects')
-    if (res.ok) {
-      const data = await res.json()
-      projects.value = data.projects || []
-      activeProjectId.value = data.activeProjectId || ''
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    projects.value = data.projects || []
+    activeProjectId.value = data.activeProjectId || ''
+    return true
   } catch (err) {
     console.error('加载项目列表失败:', err)
+    return false
   }
 }
 
@@ -359,28 +361,14 @@ const handleDeleteEnv = async (name) => {
 // 异步加载服务器与环境配置 (已自愈支持多项目环境动态映射)
 // 异步加载服务器与环境配置 (已自愈支持多项目环境动态映射与无闪烁增量更新)
 const fetchEnvs = async () => {
+  const requestSequence = ++envFetchSequence
   try {
     const res = await fetch('/api/envs')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
+    if (requestSequence !== envFetchSequence) return false
     const newEnvs = data.envs || {}
     globalRunningServices.value = data.allRunningServices || []
-    
-    // 🛡️ 高阶前端状态防冷启动自愈兜底机制：
-    // 若后端扫描返回的全局运行中服务为空，但前端大盘当前已客观亮起有本地服务在运行，
-    // 则说明属于冷启动或端口异步微探测尚未完成，自动将当前项目亮绿灯的环境数据进行智能填充兜底，确保气泡 100% 灵敏秒开！
-    if (globalRunningServices.value.length === 0 && anyLocalServiceRunning.value) {
-      const activeProjName = projects.value.find(p => p.id === activeProjectId.value)?.name || '当前项目'
-      Object.keys(envs.value).forEach(name => {
-        const item = envs.value[name]
-        if (item && item.running) {
-          globalRunningServices.value.push({
-            projectName: activeProjName,
-            envName: name,
-            port: item.port || null
-          })
-        }
-      })
-    }
     
     // 🔒 采用极致顺滑的【增量精细化更新】算法，只更新发生变化的属性（如 running、port 等状态）
     // 保证 Vue 的响应式引用对象 envs.value 不发生大范围替换，彻底消灭列表抖动、重新渲染与闪烁！
@@ -431,9 +419,13 @@ const fetchEnvs = async () => {
     currentEnv.value = data.currentEnv
     isRunning.value = data.isRunning
     isServerConnected.value = true
+    return true
   } catch (err) {
-    isServerConnected.value = false
+    if (requestSequence === envFetchSequence) {
+      isServerConnected.value = false
+    }
     console.error('加载环境列表失败:', err);
+    return false
   }
 }
 
@@ -600,18 +592,22 @@ const startEnv = async (name) => {
 }
 
 // 业务交互：安全关停本地服务进程 (精准强杀特定环境进程)
-const stopEnv = async (name) => {
-  const displayName = name;
+const stopEnv = async (target) => {
+  const service = target && typeof target === 'object' ? target : null
+  const name = service?.envName || target
+  const projectId = service?.projectId || ''
+  const displayName = name
+  const stoppingKey = projectId ? `${projectId}#${name}` : name
   if (stopControlsLocked.value) return
 
   stopControlsLocked.value = true
-  stoppingEnvName.value = displayName
+  stoppingEnvName.value = stoppingKey
   try {
     logs.value = `正在强行关闭本地服务环境 [${displayName}] 残留端口进程...\n`
     const res = await fetch('/api/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ env: name })
+      body: JSON.stringify({ env: name, projectId })
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -637,16 +633,35 @@ const stopEnv = async (name) => {
 // 业务交互：基于插拔式通用动态适配器完成凭证注入，并一键跳转登录主开发系统或关联子项目
 const launchEnv = async (name, config, targetType = 'online') => {
   // 🤖 智能一键自动免密登录 (支持有头浏览器模拟填表登录，仅当目标为线上 online 时启用)
-  const hasCredentials = normalizeCredentialFields(config.credentials)
-    .filter(c => c.enabled !== false)
-    .some(c => c.key)
+  const enabledCredentials = normalizeCredentialFields(config.credentials)
+    .filter(c => c.enabled !== false && c.key && c.value !== '')
+  const hasCredentials = enabledCredentials.length > 0
+  const hasOnlyCookieCredentials = hasCredentials && enabledCredentials.every(c => c.inject_type === 'cookie')
+
+  if (targetType === 'local' && hasOnlyCookieCredentials) {
+    try {
+      showMessage('正在预注入 Cookie，并使用默认浏览器打开本地页面...', 'info')
+      const res = await fetch('/api/envs/prepare-local-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ envKey: name })
+      })
+      const data = await res.json()
+      if (!res.ok || !data.bridgeUrl) throw new Error(data.error || '生成本地登录地址失败')
+      const opened = await openExternal(data.bridgeUrl)
+      showMessage(opened ? 'Cookie 已在页面加载前注入，正在打开本地环境...' : '默认浏览器打开失败', opened ? 'success' : 'error')
+    } catch (err) {
+      showMessage(`Cookie 注入失败: ${err.message}`, 'error')
+    }
+    return
+  }
 
   const isOnlineAuto = targetType === 'online' && config.login_url && config.online_username && config.online_password
-  const isLocalWithCredentials = targetType === 'local' && hasCredentials
+  const shouldUseCredentialBrowser = hasCredentials
 
-  if (isOnlineAuto || isLocalWithCredentials) {
+  if (isOnlineAuto || shouldUseCredentialBrowser) {
     try {
-      showMessage(isLocalWithCredentials ? '🤖 正在预注入登录凭证并拉起独立浏览器...' : '🤖 正在拉起一键登录浏览器...', 'success')
+      showMessage(shouldUseCredentialBrowser ? '🤖 正在预注入登录凭证并拉起独立浏览器...' : '🤖 正在拉起一键登录浏览器...', 'success')
       const res = await fetch('/api/envs/autologin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -739,12 +754,13 @@ const launchEnv = async (name, config, targetType = 'online') => {
 const fetchAppConfig = async () => {
   try {
     const res = await fetch('/api/app-config')
-    if (res.ok) {
-      const data = await res.json()
-      appConfig.value = { ...appConfig.value, ...data }
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    appConfig.value = { ...appConfig.value, ...data }
+    return true
   } catch (err) {
     console.error('加载应用配置失败:', err)
+    return false
   }
 }
 
@@ -775,6 +791,7 @@ watch(isAnyModalOpen, (isOpen) => {
 let envInterval = null
 let unlistenTauriClose = null
 let unlistenTauriExit = null
+let autoUpdateTimer = null
 
 // ==================== 自动检查与签名应用内更新逻辑 (Composable) ====================
 const {
@@ -809,12 +826,14 @@ const stopEnvPolling = () => {
 onMounted(async () => {
   // 💡 并行拉取品牌配置与全局项目列表，加速首屏无闪烁呈现
   try {
-    await Promise.all([
+    const [configReady, projectsReady] = await Promise.all([
       fetchAppConfig(),
       fetchProjects()
     ])
+    if (!configReady || !projectsReady) throw new Error('控制端基础接口尚未就绪')
     // 💡 获取完基本配置与项目信息后，加载具体的环境，避免前端自愈兜底时 projects 列表尚未加载完
-    await fetchEnvs()
+    const envsReady = await fetchEnvs()
+    if (!envsReady) throw new Error('环境接口尚未就绪')
   } catch (err) {
     // 💡 容错自愈：如果初始化加载全部连接失败，说明本地服务未启动或被冲突挂起，在桌面外壳下尝试自动拉起
     if (window.__TAURI__) {
@@ -869,8 +888,9 @@ onMounted(async () => {
   }
 
   // 💡 延迟 3 秒静默检查更新，提升启动加载速度体验
-  setTimeout(() => {
+  autoUpdateTimer = setTimeout(() => {
     autoCheckAppUpdate()
+    autoUpdateTimer = null
   }, 3000)
 
 })
@@ -898,6 +918,10 @@ const handleEscClose = (e) => {
 
 const handleLaunchLocalFromBadge = (env) => {
   const name = env.envName
+  if (env.projectId && env.projectId !== activeProjectId.value) {
+    openExternal(`http://localhost:${env.port}`)
+    return
+  }
   const config = envs.value[name]
   if (config) {
     launchEnv(name, config, 'local')
@@ -910,6 +934,10 @@ onUnmounted(() => {
   stopLogPolling()
   stopEnvPolling()
   stopDownloadPolling()
+  if (autoUpdateTimer) {
+    clearTimeout(autoUpdateTimer)
+    autoUpdateTimer = null
+  }
   if (stopUnlockTimer) {
     clearTimeout(stopUnlockTimer)
     stopUnlockTimer = null

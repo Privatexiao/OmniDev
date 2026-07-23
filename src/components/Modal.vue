@@ -99,7 +99,7 @@ defineExpose({
   z-index: 99999;
 }
 
-:global([data-theme="dark"]) .modal-backdrop {
+:global([data-theme="dark"] .modal-backdrop) {
   background: rgba(0, 0, 0, 0.45);
 }
 
@@ -117,7 +117,7 @@ defineExpose({
   border-radius: 16px;
 }
 
-:global([data-theme="dark"]) .modal-container {
+:global([data-theme="dark"] .modal-container) {
   background: rgba(30, 41, 59, 0.98);
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.4);
 }
@@ -172,7 +172,7 @@ defineExpose({
   border-top: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-:global([data-theme="dark"]) .modal-footer {
+:global([data-theme="dark"] .modal-footer) {
   background: rgba(255, 255, 255, 0.01);
   border-top-color: rgba(255, 255, 255, 0.04);
 }

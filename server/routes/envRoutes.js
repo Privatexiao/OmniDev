@@ -6,6 +6,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { getActiveProject, PROJECTS_FILE_PATH, CONFIG_DIR } from '../config/pathConfig.js';
@@ -34,6 +35,43 @@ import { securityService } from '../services/securityService.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const router = express.Router();
+const pendingLocalLogins = new Map();
+
+function resolveLocalLoginUrl(envName, envConfig) {
+  const port = envPorts[envName] || envConfig.local_port;
+  if (!port) throw new Error('本地环境尚未分配端口，请先启动开发服务');
+
+  let subPath = String(envConfig.local_login_path || '').trim();
+  if (subPath.startsWith('http://') || subPath.startsWith('https://')) {
+    try {
+      const urlObj = new URL(subPath);
+      subPath = urlObj.pathname + urlObj.search + urlObj.hash;
+    } catch (e) {
+      subPath = subPath.replace(/^https?:\/\/[^/]+/, '');
+    }
+  }
+  if (subPath && !subPath.startsWith('/')) {
+    const slashIndex = subPath.indexOf('/');
+    if (slashIndex > 0 && !subPath.slice(0, slashIndex).includes('#')) {
+      subPath = subPath.slice(slashIndex);
+    }
+  }
+  if (!subPath) {
+    const devHost = String(envConfig.VUE_DEV_HOST || '').trim();
+    try {
+      if (devHost.startsWith('http://') || devHost.startsWith('https://')) {
+        const urlObj = new URL(devHost);
+        subPath = urlObj.pathname + urlObj.search + urlObj.hash;
+      } else if (devHost) {
+        subPath = devHost;
+      }
+    } catch (e) {
+      subPath = '';
+    }
+  }
+  if (subPath && !subPath.startsWith('/')) subPath = `/${subPath}`;
+  return `http://localhost:${port}${subPath}`;
+}
 
 // ==================== 全局跨项目运行服务扫描 ====================
 
@@ -68,6 +106,7 @@ async function getAllRunningServicesGlobally() {
             for (const { envKey, port, occupied } of results) {
               if (occupied) {
                 allRunning.push({
+                  projectId: proj.id,
                   projectName: proj.name,
                   envName: envKey,
                   port: port
@@ -292,6 +331,53 @@ router.post('/api/envs/delete', (req, res) => {
 
 // ==================== POST /api/envs/autologin ====================
 
+router.post('/api/envs/prepare-local-login', (req, res) => {
+  const { envKey } = req.body || {};
+  if (!envKey) return res.status(400).json({ error: '未指定本地登录环境' });
+
+  try {
+    const envConfig = getEnvConfig(envKey);
+    if (!envConfig) return res.status(404).json({ error: `未找到环境 [${envKey}] 的配置` });
+
+    const cookies = normalizeCredentialFields(envConfig.credentials || [])
+      .filter(item => item.enabled !== false && item.inject_type === 'cookie' && item.key && item.value !== '');
+    if (!cookies.length) return res.status(400).json({ error: '当前环境没有可注入的 Cookie 凭证' });
+
+    const token = crypto.randomUUID();
+    const expiresAt = Date.now() + 60_000;
+    pendingLocalLogins.set(token, {
+      cookies,
+      targetUrl: resolveLocalLoginUrl(envKey, envConfig),
+      expiresAt
+    });
+
+    for (const [key, value] of pendingLocalLogins) {
+      if (value.expiresAt <= Date.now()) pendingLocalLogins.delete(key);
+    }
+
+    res.json({
+      success: true,
+      bridgeUrl: `${req.protocol}://${req.get('host')}/api/envs/local-login/${token}`
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/api/envs/local-login/:token', (req, res) => {
+  const pending = pendingLocalLogins.get(req.params.token);
+  pendingLocalLogins.delete(req.params.token);
+  if (!pending || pending.expiresAt <= Date.now()) {
+    return res.status(410).send('登录凭证已过期，请返回 OmniDev 重新打开。');
+  }
+
+  pending.cookies.forEach(cookie => {
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(cookie.key)) return;
+    res.append('Set-Cookie', `${cookie.key}=${encodeURIComponent(cookie.value)}; Path=/; Max-Age=604800; SameSite=Lax`);
+  });
+  return res.redirect(302, pending.targetUrl);
+});
+
 router.post('/api/envs/autologin', (req, res) => {
   const { envKey, targetType } = req.body;
   if (!envKey) {
@@ -306,54 +392,19 @@ router.post('/api/envs/autologin', (req, res) => {
       return res.status(404).json({ error: `未找到环境 [${envName}] 的配置` });
     }
 
-    const { login_url, online_username, online_password, login_browser, credentials } = envConfig;
+    const { login_url, online_username, online_password, login_browser, credentials, VUE_DEV_HOST } = envConfig;
+    const enabledCredentials = normalizeCredentialFields(credentials || [])
+      .filter(item => item.enabled !== false && item.key && item.value !== '');
+    const hasCredentials = enabledCredentials.length > 0;
 
-    let loginUrl = login_url;
+    let loginUrl = login_url || VUE_DEV_HOST || '';
     if (targetType === 'local') {
-      const port = envPorts[envName] || envConfig.local_port;
-      if (!port) {
-        return res.status(400).json({ error: '本地环境尚未分配端口，请先启动开发服务' });
-      }
-      let subPath = envConfig.local_login_path || '';
-      if (subPath) {
-        subPath = subPath.trim();
-        if (subPath.startsWith('http://') || subPath.startsWith('https://')) {
-          try {
-            const urlObj = new URL(subPath);
-            subPath = urlObj.pathname + urlObj.search + urlObj.hash;
-          } catch (e) {
-            subPath = subPath.replace(/^https?:\/\/[^\/]+/, '');
-          }
-        }
-        if (subPath && !subPath.startsWith('/')) {
-          const slashIdx = subPath.indexOf('/');
-          if (slashIdx > 0) {
-            const firstPart = subPath.substring(0, slashIdx);
-            if (!firstPart.includes('#')) {
-              subPath = subPath.substring(slashIdx);
-            }
-          }
-        }
-      }
-      if (!subPath) {
-        const devHost = envConfig.VUE_DEV_HOST || '';
-        try {
-          if (devHost.startsWith('http://') || devHost.startsWith('https://')) {
-            const urlObj = new URL(devHost);
-            subPath = urlObj.pathname + urlObj.search + urlObj.hash;
-          } else if (devHost) {
-            subPath = devHost.startsWith('/') ? devHost : '/' + devHost;
-          }
-        } catch (e) {
-          subPath = '';
-        }
-      }
-      if (subPath && !subPath.startsWith('/')) {
-        subPath = '/' + subPath;
-      }
-      loginUrl = `http://localhost:${port}${subPath}`;
+      loginUrl = resolveLocalLoginUrl(envName, envConfig);
     } else {
-      if (!loginUrl || !online_username || !online_password) {
+      if (!loginUrl) {
+        return res.status(400).json({ error: '该环境尚未配置可访问的线上地址' });
+      }
+      if (!hasCredentials && (!online_username || !online_password)) {
         return res.status(400).json({ error: '该环境尚未配置完整的一键登录参数（需提供登录地址、线上账号与密码）' });
       }
     }
@@ -364,7 +415,7 @@ router.post('/api/envs/autologin', (req, res) => {
       online_username: targetType === 'local' ? '' : (online_username || ''),
       online_password: targetType === 'local' ? '' : (online_password || ''),
       login_browser: login_browser || 'chrome',
-      credentials: credentials || []
+      credentials: enabledCredentials
     });
 
     writeLog(`[OneClickLogin] 🚀 正在调起后台 Python-Playwright 自动填密一键登录，直达链接: ${loginUrl}`, envKey, 'System');
@@ -385,7 +436,18 @@ router.post('/api/envs/autologin', (req, res) => {
       writeLog(`[OneClickLogin] 调试进程执行完毕，状态码: ${code}`, envKey, 'System');
     });
 
-    res.json({ success: true, message: '一键登录后台浏览器引擎已成功启动！请随时在右侧"终端日志"中查看具体调试与运行进度。' });
+    pyProcess.once('spawn', () => {
+      if (!res.headersSent) {
+        res.json({ success: true, message: '一键登录后台浏览器引擎已成功启动！请随时在右侧"终端日志"中查看具体调试与运行进度。' });
+      }
+    });
+
+    pyProcess.once('error', (error) => {
+      writeLog(`[OneClickLogin] 浏览器引擎启动失败: ${error.message}`, envKey, 'System');
+      if (!res.headersSent) {
+        res.status(500).json({ error: `无法启动 Python 登录引擎: ${error.message}` });
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: '启动一键登录失败: ' + err.message });
   }

@@ -168,6 +168,8 @@ const submitImportSelection = async () => {
         configData: {
           version: '1.1.0',
           exportedAt: new Date().toISOString(),
+          appConfig: rawConfigData.value?.appConfig,
+          activeProjectId: rawConfigData.value?.activeProjectId,
           projects: subProjects,
           projectsData: subProjectsData
         }

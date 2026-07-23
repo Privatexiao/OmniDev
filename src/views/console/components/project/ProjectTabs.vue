@@ -3,7 +3,7 @@
  * @file ProjectTabs.vue
  * @description 项目选项卡组件，用于展示顶部登记的项目页签、支持点击切换项目、登记新项目以及编辑和删除配置
  */
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 
 const props = defineProps({
   projects: {
@@ -53,6 +53,13 @@ const deleteProject = (id, name) => {
 const openAddProject = () => {
   emit('add-project')
 }
+
+onUnmounted(() => {
+  if (projectHoverTimer) {
+    clearTimeout(projectHoverTimer)
+    projectHoverTimer = null
+  }
+})
 </script>
 
 <template>

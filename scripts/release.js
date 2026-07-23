@@ -233,6 +233,7 @@ async function main() {
 
   runCommand(process.execPath, ['scripts/sync-version.js'])
   runCommand(process.execPath, ['scripts/check-version.js'])
+  runCommand(process.execPath, ['scripts/regression-check.js'])
 
   if (!fs.existsSync(tauriCliPath)) {
     throw new Error('未找到项目本地 Tauri CLI，请先确认 node_modules 已完整安装')

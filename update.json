@@ -1,13 +1,13 @@
 {
-  "version": "0.1.5",
+  "version": "0.1.7",
   "updateMode": "automatic",
-  "changelog": "修复更新检测网络失败误报最新版本，增加多更新源重试与明确错误提示",
-  "notes": "修复更新检测网络失败误报最新版本，增加多更新源重试与明确错误提示",
-  "downloadUrl": "https://github.com/Privatexiao/OmniDev/releases/download/v0.1.5/OmniDev_0.1.5_x64-setup.exe",
+  "changelog": "修复本地环境终端 Webpack 进度异常换行、QuickEdit 暂停及服务进程树停止问题",
+  "notes": "修复本地环境终端 Webpack 进度异常换行、QuickEdit 暂停及服务进程树停止问题",
+  "downloadUrl": "https://github.com/Privatexiao/OmniDev/releases/download/v0.1.7/OmniDev_0.1.7_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/Privatexiao/OmniDev/releases/download/v0.1.5/OmniDev_0.1.5_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeHorUFJ5cEFDQmYzOURPR0NVcTQwWDFzcXYzRjVDUFJscjU0VkUwN1haQ3dGK1hXeDBMNHhWdXdmUGpNTzZiMjlla1pxYmNmSXcrV1BRaXBVKzY1QWc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzA3NTk5CWZpbGU6T21uaURldl8wLjEuNV94NjQtc2V0dXAuZXhlCnlKTE9waWlrMzBmLzdPZGY0L0JWaVJTa0ZaSG80ZHZtOTZEWm8zV1VUcFREKy9aYXdqQmxwcStvNkh3VlRQWEJmd2hGQWx1bUtlcUd4VFNENzBIZ0F3PT0K"
+      "url": "https://github.com/Privatexiao/OmniDev/releases/download/v0.1.7/OmniDev_0.1.7_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeDBIOGlsb3Y3RzE3dzk4ZCtEaFNZZmtjaVdkR1ZjVVRrdkIrQUR6MkxVVWttOHVDcFJLckpzRDEyUU5OM0YwMlpySENPcDc4QXNOTnFtYURnakhEQmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODAyNTU4CWZpbGU6T21uaURldl8wLjEuN194NjQtc2V0dXAuZXhlCjdaRExuZWFoSFU0SGRwZUNmdDN1QU5sYkRPRUw2S3hWQkVHL1Z4d3hyUzExaTJOWENUSHZBb21odEtMZWpLYlZ4Tms0VndRTUdaa3hZZEwyZ3dPS0RRPT0K"
     }
   }
 }

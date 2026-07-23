@@ -42,23 +42,34 @@ export function getCommonEnvsConfig() {
 
 export function saveCommonEnvConfig(envKey, config) {
   const scope = secretScope(envKey);
+  const data = getCommonEnvsConfig();
+  if (!data.envs) data.envs = {};
+  const previousConfig = data.envs[envKey] || {};
 
   // 1. 将敏感密码存入系统级加密保险库
   if (config.online_password && config.online_password !== '******') {
     securityService.saveSecret(scope, 'online_password', config.online_password);
+  } else if (config.online_password === '') {
+    securityService.deleteSecret(scope, 'online_password');
   }
 
   // 2. 将凭证字段值写入保险库，物理文件中仅保留脱敏结构 (value 清空)
   const credentials = normalizeCredentialFields(config.credentials);
+  const nextCredentialKeys = new Set(credentials.map(field => field.key));
+  normalizeCredentialFields(previousConfig.credentials || []).forEach(field => {
+    if (!nextCredentialKeys.has(field.key)) {
+      securityService.deleteSecret(scope, field.key);
+    }
+  });
   credentials.forEach(field => {
-    if (field.value) {
+    if (field.value !== '') {
       securityService.saveSecret(scope, field.key, field.value);
+    } else {
+      securityService.deleteSecret(scope, field.key);
     }
   });
   const strippedCredentials = credentials.map(f => ({ key: f.key, value: '', inject_type: f.inject_type, enabled: f.enabled !== false }));
 
-  const data = getCommonEnvsConfig();
-  if (!data.envs) data.envs = {};
   data.envs[envKey] = {
     VUE_DEV_HOST: config.VUE_DEV_HOST || '',
     company_name: config.company_name || '',

@@ -88,7 +88,7 @@ if (fs.existsSync(distPath)) {
 }
 
 // 4. 监听端口并成功冷启动
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '127.0.0.1', () => {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;

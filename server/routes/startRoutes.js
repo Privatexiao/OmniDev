@@ -19,6 +19,7 @@ import {
   setCurrentEnv,
   saveState,
   killEnvProcess,
+  killProjectEnvProcess,
   killActiveProcess,
   getFirstFreePort,
   isPortOccupied,
@@ -69,6 +70,21 @@ function normalizeNodeVersion(version) {
     throw new Error(`Node 版本格式非法: ${version || '<empty>'}`);
   }
   return normalized;
+}
+
+function buildVersionedRunCommand(runCommand, nodeVersion, isWin) {
+  if (!nodeVersion) return runCommand;
+
+  if (isWin && /^(\s*)(npm|npx|pnpm|yarn)(?=\s|$)/i.test(runCommand)) {
+    // fnm 负责切换 Node，cmd.exe 负责稳定解析 npm.cmd 等 Windows 批处理入口。
+    const executableCommand = runCommand.replace(
+      /^(\s*)(npm|npx|pnpm|yarn)(?=\s|$)/i,
+      (_match, leading, manager) => `${leading}${manager}.cmd`
+    );
+    return `fnm exec --using=${nodeVersion} -- cmd.exe /d /s /c ${executableCommand}`;
+  }
+
+  return `fnm exec --using=${nodeVersion} -- ${runCommand}`;
 }
 
 /**
@@ -134,9 +150,10 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
     writeLog(`[NodeSwitch] 🚀 强制使用 Node 版本 [${nodeVersion}] 启动；版本不存在或切换失败时不会降级到系统 Node`, envName, 'System');
   }
 
-  const versionedRunCommand = nodeVersion
-    ? `fnm exec --using=${nodeVersion} -- ${runCommand}`
-    : runCommand;
+  const versionedRunCommand = buildVersionedRunCommand(runCommand, nodeVersion, isWin);
+  if (nodeVersion) {
+    writeLog(`[NodeSwitch] 实际执行命令: ${versionedRunCommand}`, envName, 'System');
+  }
 
   const mergedEnv = {
     ...process.env,
@@ -150,13 +167,15 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
       .map(([key, val]) => `$env:${key}='${val.replace(/'/g, "''")}'`)
       .join('; ');
 
-    const envCommand = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${powershellEnvInjections ? powershellEnvInjections + '; ' : ''}${versionedRunCommand} 2>&1 | ForEach-Object { Write-Host $_; $_ } | Out-File -FilePath '${logFilePath}' -Encoding utf8 -Append; Read-Host '----------------------------------------\n[OmniDev] 服务已停止或运行结束，请检查上方日志。按回车键(Enter)关闭此窗口'`;
+    const disableQuickEditCommand = `try { Add-Type -Namespace OmniDev -Name NativeConsole -MemberDefinition '[System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern System.IntPtr GetStdHandle(int handle); [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern bool GetConsoleMode(System.IntPtr handle, out uint mode); [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern bool SetConsoleMode(System.IntPtr handle, uint mode);' -ErrorAction SilentlyContinue; $consoleHandle = [OmniDev.NativeConsole]::GetStdHandle(-10); $consoleMode = 0; if ([OmniDev.NativeConsole]::GetConsoleMode($consoleHandle, [ref]$consoleMode)) { [void][OmniDev.NativeConsole]::SetConsoleMode($consoleHandle, (($consoleMode -bor 0x80) -band (-bnot 0x40))) } } catch {}`;
+    const progressOutputCommand = `${versionedRunCommand} 2>&1 | ForEach-Object { $line = [string]$_; if ($line -match '\\[webpack\\.Progress\\]\\s+(\\d+)%') { $percent = [int]$Matches[1]; if ($percent -ne $lastDisplayedProgress) { Write-Host (([char]13) + ("[OmniDev] 正在编译: {0}%" -f $percent)) -NoNewline; $lastDisplayedProgress = $percent; $progressVisible = $true }; if ($percent -ne $lastLoggedProgress) { "[OmniDev] 编译进度: $percent%"; $lastLoggedProgress = $percent } } else { if ($progressVisible) { Write-Host ''; $progressVisible = $false }; $lastDisplayedProgress = -1; Write-Host $line; $line } } | Out-File -FilePath '${logFilePath}' -Encoding utf8 -Append`;
+    const envCommand = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${disableQuickEditCommand}; $env:PORT='${assignedPort}'; $env:NODE_ENV='development'; ${powershellEnvInjections ? powershellEnvInjections + '; ' : ''}$lastDisplayedProgress = -1; $lastLoggedProgress = -1; $progressVisible = $false; ${progressOutputCommand}; if ($progressVisible) { Write-Host '' }; Read-Host '----------------------------------------\n[OmniDev] 服务已停止或运行结束，请检查上方日志。按回车键(Enter)关闭此窗口'`;
     const escapedEnvCommand = envCommand.replace(/\$/g, '`$');
 
     return spawn('powershell.exe', [
       '-NoProfile',
       '-Command',
-      `Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "${escapedEnvCommand.replace(/"/g, '`"')}"`
+      `Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "${escapedEnvCommand.replace(/"/g, '`"')}" -Wait`
     ], {
       cwd: targetWorkingDir
     });
@@ -208,6 +227,11 @@ router.post('/api/start', async (req, res) => {
     return res.status(400).json({ error: '当前环境已禁用本地开发服务启动' });
   }
 
+  const activeProj = getActiveProject();
+  if (!activeProj || !activeProj.path) {
+    return res.status(400).json({ error: '请先在控制台中添加并激活一个项目，再尝试启动环境' });
+  }
+
 
   // 1. 动态探测并分配第一个闲置可用端口
   // 🔒 统一使用物理环境名 envName 管理本地进程与端口，让子项目共享控制台状态与端口映射
@@ -223,8 +247,10 @@ router.post('/api/start', async (req, res) => {
   let targetPort = null;
   if (envConfig && envConfig.local_port) {
     const customPort = parseInt(envConfig.local_port, 10);
-    if (customPort && !isNaN(customPort)) {
+    if (Number.isInteger(customPort) && customPort >= 1 && customPort <= 65535) {
       targetPort = customPort;
+    } else {
+      return res.status(400).json({ error: `启动失败：固定端口 ${envConfig.local_port} 不在 1-65535 的有效范围内` });
     }
   }
 
@@ -238,26 +264,13 @@ router.post('/api/start', async (req, res) => {
     }
     assignedPort = targetPort;
   } else {
-    assignedPort = await getFirstFreePort(appConfig.defaultPort || 8080);
-  }
-  
-  // 🔒 端口排他性保障：若其他闲置环境在 envPorts 中残留了相同的历史端口，立即将其清除，彻底解决影子启用误判 Bug
-  for (const [name, port] of Object.entries(envPorts)) {
-    if (name !== envName && port === assignedPort) {
-      delete envPorts[name];
+    try {
+      assignedPort = await getFirstFreePort(appConfig.defaultPort || 8080);
+    } catch (err) {
+      return res.status(409).json({ error: `启动失败：${err.message}` });
     }
   }
   
-  envPorts[envName] = assignedPort;
-  
-  setCurrentEnv(envName); // 统一使用物理环境名
-  saveState();
-
-  const activeProj = getActiveProject();
-  if (!activeProj || !activeProj.path) {
-    return res.status(400).json({ error: '请先在控制台中添加并激活一个项目，再尝试启动环境' });
-  }
-
   try {
     // 初始化该环境专属的独立本地日志文件
     const logDir = path.join(__dirname, '..', '..', 'logs');
@@ -355,6 +368,16 @@ router.post('/api/start', async (req, res) => {
     runCommand = applyPortArgument(runCommand, assignedPort);
     writeLog(`启动脚本已显式绑定端口: ${runCommand}`, envName, 'System');
 
+    // 所有启动前校验通过后才持久化端口，避免路径、命令或 Node 版本错误留下幽灵运行状态。
+    for (const [name, port] of Object.entries(envPorts)) {
+      if (name !== envName && port === assignedPort) {
+        delete envPorts[name];
+      }
+    }
+    envPorts[envName] = assignedPort;
+    setCurrentEnv(envName);
+    saveState();
+
     // 🚀 跨平台执行命令拉起，彻底剥离 .ps1，在多 OS 下自动分配适配的运行逻辑
     const childProc = runLocalCommandCrossPlatform(
       targetWorkingDir,
@@ -374,19 +397,33 @@ router.post('/api/start', async (req, res) => {
 
     res.json({ success: true, message: `环境 [${envName}] 已成功启动，已分配本地端口: ${assignedPort}`, port: assignedPort });
   } catch (err) {
+    delete activeProcesses[envName];
+    if (envPorts[envName] === assignedPort) {
+      delete envPorts[envName];
+      if (currentEnv === envName) setCurrentEnv('');
+      saveState();
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
 // 强关服务 (支持精准强杀某个环境或者全局自愈强杀)
 router.post('/api/stop', (req, res) => {
-  const { env } = req.body;
-  if (env) {
-    killEnvProcess(env);
-    res.json({ success: true, message: `环境 [${env}] 已成功关闭` });
-  } else {
-    killActiveProcess();
-    res.json({ success: true, message: '所有本地服务已关闭' });
+  const { env, projectId } = req.body;
+  try {
+    if (env) {
+      if (projectId) {
+        const result = killProjectEnvProcess(projectId, env);
+        return res.json({ success: true, message: `项目 [${result.project.name}] 的环境 [${env}] 已成功关闭` });
+      }
+      killEnvProcess(env);
+      return res.json({ success: true, message: `环境 [${env}] 已成功关闭` });
+    } else {
+      killActiveProcess();
+      return res.json({ success: true, message: '所有本地服务已关闭' });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: `停止本地服务失败: ${err.message}` });
   }
 });
 

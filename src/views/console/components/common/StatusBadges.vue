@@ -34,6 +34,8 @@ defineProps({
 })
 
 defineEmits(['start-server', 'stop-env', 'launch-local'])
+
+const serviceKey = (env) => `${env.projectId || env.projectName || ''}#${env.envName || ''}`
 </script>
 
 <template>
@@ -73,7 +75,7 @@ defineEmits(['start-server', 'stop-env', 'launch-local'])
         <div class="tooltip-body">
           <div 
             v-for="env in allEnvs" 
-            :key="env.projectName + '_' + env.envName" 
+            :key="serviceKey(env)"
             class="tooltip-env-item"
           >
             <!-- 运行中亮绿灯带呼吸感 -->
@@ -104,12 +106,12 @@ defineEmits(['start-server', 'stop-env', 'launch-local'])
               
               <button 
                 class="tooltip-stop-btn" 
-                :class="{ 'is-stopping': stoppingEnvName === env.envName }"
+                :class="{ 'is-stopping': stoppingEnvName === serviceKey(env) }"
                 :disabled="stopControlsLocked"
-                @click.stop="$emit('stop-env', env.envName)"
-                :title="stoppingEnvName === env.envName ? '正在停止，请稍候' : '强关该环境本地服务'"
+                @click.stop="$emit('stop-env', env)"
+                :title="stoppingEnvName === serviceKey(env) ? '正在停止，请稍候' : '强关该环境本地服务'"
               >
-                {{ stoppingEnvName === env.envName ? '停止中...' : '停止' }}
+                {{ stoppingEnvName === serviceKey(env) ? '停止中...' : '停止' }}
               </button>
             </div>
           </div>

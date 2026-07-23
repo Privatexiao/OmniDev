@@ -3,7 +3,7 @@
  * @file SettingsAbout.vue
  * @description 系统设置“关于与更新”子面板，展示应用基本信息、提供手动/自动检查更新配置以及实时渲染包下载进度条
  */
-import { ref, shallowRef, watch, onMounted, computed } from 'vue'
+import { ref, shallowRef, onMounted, computed } from 'vue'
 
 const props = defineProps({
   appConfigForm: {
@@ -37,15 +37,12 @@ const emit = defineEmits([
   'download'
 ])
 
-const localForm = ref({ ...props.appConfigForm })
-
-watch(() => props.appConfigForm, (newVal) => {
-  localForm.value = { ...newVal }
-}, { deep: true })
-
-watch(localForm, (newVal) => {
-  emit('update:appConfigForm', newVal)
-}, { deep: true })
+const updateAutoCheck = (event) => {
+  emit('update:appConfigForm', {
+    ...props.appConfigForm,
+    autoCheckUpdate: event.target.checked
+  })
+}
 
 const checkingUpdate = shallowRef(false)
 const updateResult = ref(null)
@@ -72,7 +69,7 @@ const manualCheckUpdate = async () => {
   checkingUpdate.value = true
   updateResult.value = null
   try {
-    const url = `/api/system/check-update?updateUrl=${encodeURIComponent(localForm.value.updateUrl || '')}`
+    const url = `/api/system/check-update?updateUrl=${encodeURIComponent(props.appConfigForm.updateUrl || '')}`
     const res = await fetch(url)
     const data = await res.json()
     updateResult.value = data
@@ -117,7 +114,7 @@ onMounted(() => {
 
     <div class="form-group" style="margin-top: 16px; margin-bottom: 16px;">
       <label class="checkbox-label" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
-        <input type="checkbox" v-model="localForm.autoCheckUpdate" />
+        <input type="checkbox" :checked="appConfigForm.autoCheckUpdate" @change="updateAutoCheck" />
         <span>启动软件时自动检查更新</span>
       </label>
     </div>

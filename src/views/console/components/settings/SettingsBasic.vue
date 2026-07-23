@@ -3,8 +3,6 @@
  * @file SettingsBasic.vue
  * @description 系统设置基础配置面板，用于修改主控后端服务端口、本地前端代理端口以及动态分配端口范围
  */
-import { ref, watch } from 'vue'
-
 const props = defineProps({
   appConfigForm: {
     type: Object,
@@ -14,15 +12,13 @@ const props = defineProps({
 
 const emit = defineEmits(['update:appConfigForm'])
 
-const localForm = ref({ ...props.appConfigForm })
-
-watch(() => props.appConfigForm, (newVal) => {
-  localForm.value = { ...newVal }
-}, { deep: true })
-
-watch(localForm, (newVal) => {
-  emit('update:appConfigForm', newVal)
-}, { deep: true })
+const updateNumberField = (field, event) => {
+  const rawValue = event.target.value
+  emit('update:appConfigForm', {
+    ...props.appConfigForm,
+    [field]: rawValue === '' ? '' : Number(rawValue)
+  })
+}
 </script>
 
 <template>
@@ -34,19 +30,19 @@ watch(localForm, (newVal) => {
     <div class="grid-2">
       <div class="form-group">
         <label>控制台服务端口 (Express)</label>
-        <input v-model.number="localForm.serverPort" type="number" class="form-control" placeholder="例如: 3300" />
+        <input :value="appConfigForm.serverPort" type="number" class="form-control" placeholder="例如: 3300" @input="updateNumberField('serverPort', $event)" />
       </div>
       <div class="form-group">
         <label>前端本地代理端口 (Vite)</label>
-        <input v-model.number="localForm.frontendPort" type="number" class="form-control" placeholder="例如: 3000" />
+        <input :value="appConfigForm.frontendPort" type="number" class="form-control" placeholder="例如: 3000" @input="updateNumberField('frontendPort', $event)" />
       </div>
       <div class="form-group">
         <label>起始分配端口</label>
-        <input v-model.number="localForm.defaultPort" type="number" class="form-control" placeholder="默认: 8080" />
+        <input :value="appConfigForm.defaultPort" type="number" class="form-control" placeholder="默认: 8080" @input="updateNumberField('defaultPort', $event)" />
       </div>
       <div class="form-group">
         <label>最大分配端口</label>
-        <input v-model.number="localForm.maxPort" type="number" class="form-control" placeholder="默认: 8150" />
+        <input :value="appConfigForm.maxPort" type="number" class="form-control" placeholder="默认: 8150" @input="updateNumberField('maxPort', $event)" />
       </div>
     </div>
     <p class="form-help" style="margin-top: 12px;">

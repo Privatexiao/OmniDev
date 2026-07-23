@@ -1,11 +1,12 @@
 {
   "name": "omnidev",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.7",
   "type": "module",
   "scripts": {
     "version:sync": "node scripts/sync-version.js",
     "version:check": "node scripts/check-version.js",
+    "regression:check": "node scripts/regression-check.js",
     "release": "node scripts/release.js",
     "dev": "powershell -NoProfile -Command \"Start-Process powershell -WorkingDirectory $PWD.Path -ArgumentList '-NoExit','-Command','chcp 65001; node server.js'\" && vite",
     "server": "node server.js",

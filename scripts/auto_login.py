@@ -100,8 +100,22 @@ def smart_login(login_url, username, password, login_browser="auto", credentials
                 print(f"[AutoLogin] [错误] 启动所有浏览器引擎均失败: {err_str}")
                 sys.exit(1)
 
-        # 创建上下文，禁用默认视口大小以实现真正的最大化自适应
-        context = browser.new_context(no_viewport=True)
+        # 创建上下文，Header 类型凭证在首次导航前作为额外请求头注入。
+        context_options = {"no_viewport": True}
+        if credentials:
+            extra_headers = {}
+            for cred in credentials:
+                if cred.get('enabled') is False:
+                    continue
+                key = cred.get('key')
+                value = cred.get('value')
+                if cred.get('inject_type') == 'header' and key and value is not None:
+                    extra_headers[str(key)] = str(value)
+            if extra_headers:
+                context_options["extra_http_headers"] = extra_headers
+                print(f"[AutoLogin] [凭证注入] 已在导航前挂载 {len(extra_headers)} 个 Header 凭证")
+
+        context = browser.new_context(**context_options)
 
         # 1. 注入 Cookie 凭证到 context 中 (在导航前)
         if credentials:
