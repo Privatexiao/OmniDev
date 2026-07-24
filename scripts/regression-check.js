@@ -50,7 +50,7 @@ function checkVueFiles() {
 
 function checkJavaScriptFiles() {
   const roots = ['src', 'server', 'scripts'].map(directory => path.join(rootDir, directory))
-  const files = roots.flatMap(directory => walkFiles(directory, file => file.endsWith('.js')))
+  const files = roots.flatMap(directory => walkFiles(directory, file => /\.c?js$/.test(file)))
   for (const file of files) {
     const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' })
     if (result.status !== 0) {
@@ -65,11 +65,30 @@ function checkKnownRegressions() {
   if (!startRoute.includes('cmd.exe /d /s /c') || !startRoute.includes('manager}.cmd')) {
     failures.push('Windows fnm 启动链未通过 cmd.exe 解析包管理器 .cmd')
   }
-  if (!startRoute.includes('webpack\\\\.Progress') || !startRoute.includes('$lastLoggedProgress')) {
-    failures.push('Windows 本地服务终端未过滤 Webpack 高频进度输出')
+  if (startRoute.includes('progressOutputCommand') || startRoute.includes('[OmniDev] 正在编译') || startRoute.includes('webpack\\\\.Progress')) {
+    failures.push('Windows 本地服务终端仍在加工 Webpack 原生输出')
+  }
+  if (!startRoute.includes('$serviceExitCode = 0; ${versionedRunCommand}; if ($null -ne $LASTEXITCODE)')) {
+    failures.push('Windows 本地服务终端未直接执行原生启动命令')
+  }
+  if (!startRoute.includes('OMNIDEV_NATIVE_LOG') || !startRoute.includes('OMNIDEV_NATIVE_PRELOAD')) {
+    failures.push('Windows 本地服务原生终端输出未通过预加载器同步记录到日志文件')
+  }
+  const nativeOutputLogger = fs.readFileSync(path.join(rootDir, 'server/utils/nativeOutputLogger.cjs'), 'utf8')
+  if (!nativeOutputLogger.includes('stream.isTTY') || !nativeOutputLogger.includes('originalWrite.apply')) {
+    failures.push('Windows 本地服务日志复制器没有保留原生 TTY 输出')
   }
   if (!startRoute.includes('NativeConsole') || !startRoute.includes('-Wait')) {
     failures.push('Windows 本地服务终端未关闭快速选择暂停或未保持可停止的父子进程关系')
+  }
+  if (!startRoute.includes("'utf16le'") || !startRoute.includes("'-EncodedCommand'")) {
+    failures.push('Windows 本地服务终端未通过 EncodedCommand 安全传递复杂 PowerShell 命令')
+  }
+  if (startRoute.includes("envCommand.replace(/\\$/g")) {
+    failures.push('Windows 本地服务终端重新使用了易损坏复杂命令的手工美元符转义')
+  }
+  if (!startRoute.includes("childProc.once('exit'") || !startRoute.includes('clearExitedProcessState')) {
+    failures.push('本地服务启动终端退出后未清理幽灵运行状态')
   }
   if (startRoute.indexOf('runCommand = applyPortArgument') > startRoute.indexOf('envPorts[envName] = assignedPort')) {
     failures.push('启动端口状态在启动命令校验前被提前持久化')

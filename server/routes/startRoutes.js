@@ -28,6 +28,7 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const nativeOutputLoggerPath = fileURLToPath(new URL('../utils/nativeOutputLogger.cjs', import.meta.url));
 const router = express.Router();
 
 function resolveNpmRunCommand(targetWorkingDir, envName) {
@@ -168,14 +169,16 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
       .join('; ');
 
     const disableQuickEditCommand = `try { Add-Type -Namespace OmniDev -Name NativeConsole -MemberDefinition '[System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern System.IntPtr GetStdHandle(int handle); [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern bool GetConsoleMode(System.IntPtr handle, out uint mode); [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern bool SetConsoleMode(System.IntPtr handle, uint mode);' -ErrorAction SilentlyContinue; $consoleHandle = [OmniDev.NativeConsole]::GetStdHandle(-10); $consoleMode = 0; if ([OmniDev.NativeConsole]::GetConsoleMode($consoleHandle, [ref]$consoleMode)) { [void][OmniDev.NativeConsole]::SetConsoleMode($consoleHandle, (($consoleMode -bor 0x80) -band (-bnot 0x40))) } } catch {}`;
-    const progressOutputCommand = `${versionedRunCommand} 2>&1 | ForEach-Object { $line = [string]$_; if ($line -match '\\[webpack\\.Progress\\]\\s+(\\d+)%') { $percent = [int]$Matches[1]; if ($percent -ne $lastDisplayedProgress) { Write-Host (([char]13) + ("[OmniDev] 正在编译: {0}%" -f $percent)) -NoNewline; $lastDisplayedProgress = $percent; $progressVisible = $true }; if ($percent -ne $lastLoggedProgress) { "[OmniDev] 编译进度: $percent%"; $lastLoggedProgress = $percent } } else { if ($progressVisible) { Write-Host ''; $progressVisible = $false }; $lastDisplayedProgress = -1; Write-Host $line; $line } } | Out-File -FilePath '${logFilePath}' -Encoding utf8 -Append`;
-    const envCommand = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${disableQuickEditCommand}; $env:PORT='${assignedPort}'; $env:NODE_ENV='development'; ${powershellEnvInjections ? powershellEnvInjections + '; ' : ''}$lastDisplayedProgress = -1; $lastLoggedProgress = -1; $progressVisible = $false; ${progressOutputCommand}; if ($progressVisible) { Write-Host '' }; Read-Host '----------------------------------------\n[OmniDev] 服务已停止或运行结束，请检查上方日志。按回车键(Enter)关闭此窗口'`;
-    const escapedEnvCommand = envCommand.replace(/\$/g, '`$');
+    const escapedLogFilePath = logFilePath.replace(/'/g, "''");
+    const escapedPreloadPath = nativeOutputLoggerPath.replace(/\\/g, '/').replace(/'/g, "''");
+    const envCommand = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${disableQuickEditCommand}; $env:PORT='${assignedPort}'; $env:NODE_ENV='development'; ${powershellEnvInjections ? powershellEnvInjections + '; ' : ''}$env:OMNIDEV_NATIVE_LOG='${escapedLogFilePath}'; $env:OMNIDEV_NATIVE_PRELOAD='${escapedPreloadPath}'; $env:NODE_OPTIONS=(($env:NODE_OPTIONS + ' --require "' + $env:OMNIDEV_NATIVE_PRELOAD + '"').Trim()); $serviceExitCode = 0; ${versionedRunCommand}; if ($null -ne $LASTEXITCODE) { $serviceExitCode = $LASTEXITCODE }; Read-Host '----------------------------------------\n[OmniDev] 服务已停止或运行结束，请检查上方输出。按回车键(Enter)关闭此窗口'; exit $serviceExitCode`;
+    // 使用 PowerShell 官方 UTF-16LE EncodedCommand，避免长命令中的引号、美元符和正则被二次解析。
+    const encodedEnvCommand = Buffer.from(envCommand, 'utf16le').toString('base64');
 
     return spawn('powershell.exe', [
       '-NoProfile',
       '-Command',
-      `Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "${escapedEnvCommand.replace(/"/g, '`"')}" -Wait`
+      `Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', '${encodedEnvCommand}' -Wait`
     ], {
       cwd: targetWorkingDir
     });
@@ -393,7 +396,31 @@ router.post('/api/start', async (req, res) => {
     // 独立托管当前启动环境的进程
     activeProcesses[envName] = childProc;
 
-    writeLog(`已成功拉起前端开发服务，本地端口: ${assignedPort}，日志已实时落盘: logs/${path.basename(logFilePath)}`, envName, 'System');
+    const clearExitedProcessState = () => {
+      if (activeProcesses[envName] !== childProc) return false;
+      delete activeProcesses[envName];
+      if (envPorts[envName] === assignedPort) {
+        delete envPorts[envName];
+        if (currentEnv === envName) setCurrentEnv('');
+        saveState();
+      }
+      return true;
+    };
+
+    childProc.once('error', (error) => {
+      if (!clearExitedProcessState()) return;
+      writeLog(`本地服务启动终端异常: ${error.message}`, envName, 'System');
+    });
+    childProc.once('exit', (code, signal) => {
+      if (!clearExitedProcessState()) return;
+      const exitDetail = signal ? `信号 ${signal}` : `退出码 ${code ?? '未知'}`;
+      writeLog(`本地服务启动终端已退出（${exitDetail}），运行状态已清理`, envName, 'System');
+    });
+
+    const outputDescription = process.platform === 'win32'
+      ? `原生终端输出已同步记录: logs/${path.basename(logFilePath)}`
+      : `日志已实时落盘: logs/${path.basename(logFilePath)}`;
+    writeLog(`已成功拉起前端开发服务，本地端口: ${assignedPort}，${outputDescription}`, envName, 'System');
 
     res.json({ success: true, message: `环境 [${envName}] 已成功启动，已分配本地端口: ${assignedPort}`, port: assignedPort });
   } catch (err) {
