@@ -1,7 +1,7 @@
 {
-  "version": "0.1.8",
+  "version": "0.1.9",
   "updateMode": "automatic",
-  "changelog": "恢复 Webpack 原生终端输出并同步记录 UTF-8 日志，完善本地环境启动与停止稳定性",
+  "changelog": "修复登录凭证被项目环境配置覆盖的问题",
   "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe",
-  "updaterSignature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeDlOWDI2UFA5UzdBTTdRRmJ3N3Y5MFEvYnR4VzlzK3FsR3EyQlRxVlByYjIvaGErSjFhUFZaT3RQeUZsUW81ckl1bmRUZ045aHB0ZzZ2bXErS1BjYndrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODY1MDgxCWZpbGU6T21uaURldl8wLjEuOF94NjQtc2V0dXAuZXhlCmEweW4vRWNKYlBWMnhDcFVYYmVObnZGZmdSdmRBcUhCckMyTEJiSFBwREpuSmwrbytjU0dxek45SURtVDV4S3NqR2poNnQ3OUJ2NHhVTWZxTlhYbEFBPT0K"
+  "updaterSignature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeDhqdTlPMExsNlE5ZUJLaUJBdExDVjE1OU9kbk5UM050aW5OZlVraEpUN0JYRWI2TXVJTXpmNWp1VmV3L2RtOFY2VEdLbmpBeFVJOU5oRnMyS2FJMmdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjI4OTEzCWZpbGU6T21uaURldl8wLjEuOV94NjQtc2V0dXAuZXhlCm1QUGtNVmpNOFZjVjNib0pQdkZYbmFXNDVHNmQrZmJkTy9DOEVlWDZ1RGFFUEVPSFBkeXMzOG40NFpQOWdqNG1TMy9jWFppMXU5UDNBdHBJdWxNZUNRPT0K"
 }
