@@ -179,3 +179,59 @@ export function getCredentialValue(raw, key) {
   const field = normalizeCredentialFields(raw).find(item => item.key === key);
   return field ? field.value : '';
 }
+
+/**
+ * 将已启用的登录凭证编译为启动子进程使用的环境变量。
+ * 仅编译项目 preset.envVarMap 显式声明的字段，避免把 Cookie 键误当环境变量。
+ * 映射值支持变量名，或 `变量名=包含 {{key}} / {{value}} 的模板`。
+ */
+export function buildCredentialEnvVars(raw, envVarMap = {}) {
+  const result = {};
+  const validEnvName = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  normalizeCredentialFields(raw).forEach(field => {
+    if (field.enabled === false || field.value === '') return;
+
+    const mapping = typeof envVarMap[field.key] === 'string'
+      ? envVarMap[field.key].trim()
+      : '';
+    if (!mapping) return;
+
+    const templateMatch = mapping.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s);
+    const envName = templateMatch ? templateMatch[1] : mapping;
+    if (!validEnvName.test(envName)) return;
+
+    result[envName] = templateMatch
+      ? templateMatch[2]
+          .replaceAll('{{key}}', field.key)
+          .replaceAll('{{value}}', String(field.value))
+      : String(field.value);
+  });
+
+  return result;
+}
+
+/**
+ * 从 dotenv 内容识别“环境变量值是一条 Cookie 赋值”的旧项目约定。
+ * 例如 VUE_APP_CORP=corpid=123 会推导出 corpid 的启动变量模板。
+ */
+export function inferCredentialEnvVarMap(dotenvContent) {
+  const result = {};
+  const validEnvName = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  const validCredentialKey = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
+  String(dotenvContent || '').split(/\r?\n/).forEach(line => {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || !validEnvName.test(match[1])) return;
+
+    const rawValue = match[2].replace(/^(['"])(.*)\1$/, '$2');
+    const separatorIndex = rawValue.indexOf('=');
+    if (separatorIndex <= 0) return;
+
+    const credentialKey = rawValue.slice(0, separatorIndex).trim();
+    if (!validCredentialKey.test(credentialKey)) return;
+    result[credentialKey] = `${match[1]}={{key}}={{value}}`;
+  });
+
+  return result;
+}

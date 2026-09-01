@@ -37,7 +37,7 @@
       "properties": {
         "envVarMap": {
           "type": "object",
-          "description": "凭证字段到环境变量的映射规则，值可为环境变量名或带 template 的模板表达式",
+          "description": "凭证字段到环境变量的映射规则，值可为环境变量名，或如 VUE_APP_AUTH={{key}}={{value}} 的模板表达式",
           "additionalProperties": {
             "type": "string"
           }

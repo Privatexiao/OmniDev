@@ -10,7 +10,11 @@ import { fileURLToPath } from 'url';
 import { getActiveProject } from '../config/pathConfig.js';
 import { getGlobalSSHConfig } from '../services/sshService.js';
 import { appConfig } from '../services/projectService.js';
-import { getEnvConfig } from '../services/envService.js';
+import {
+  buildCredentialEnvVars,
+  getEnvConfig,
+  inferCredentialEnvVarMap
+} from '../services/envService.js';
 import { writeLog, getFormattedDate, cleanOldLogs, buildLogFilePath } from '../services/logService.js';
 import {
   envPorts,
@@ -352,6 +356,17 @@ router.post('/api/start', async (req, res) => {
         if (envConfig.VUE_DEV_HOST) {
           envVars.VUE_DEV_HOST = envConfig.VUE_DEV_HOST;
         }
+
+        // 进程级变量优先于 Vue CLI / Vite 从 .env.* 加载的同名变量。
+        const dotenvPath = path.join(targetWorkingDir, `.env.${envName}`);
+        const inferredEnvVarMap = fs.existsSync(dotenvPath)
+          ? inferCredentialEnvVarMap(fs.readFileSync(dotenvPath, 'utf-8'))
+          : {};
+        const credentialEnvVarMap = {
+          ...inferredEnvVarMap,
+          ...(appConfig.preset?.envVarMap || {})
+        };
+        Object.assign(envVars, buildCredentialEnvVars(envConfig.credentials, credentialEnvVarMap));
         
 
         writeLog(`已成功在内存中动态生成进程级临时环境变量并绑定端口 [${assignedPort}] (严格物理只读，未修改任何物理文件)`, envName, 'System');
