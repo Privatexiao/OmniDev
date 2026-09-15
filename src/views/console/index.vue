@@ -836,6 +836,7 @@ const {
   installingAndExiting,
   autoCheckAppUpdate,
   downloadNewVersion,
+  resetDownloadState,
   confirmInstallAndExit,
   stopDownloadPolling
 } = useAppUpdate(appConfig, showMessage)
@@ -1037,6 +1038,7 @@ onUnmounted(() => {
     @success="handleSettingsSuccess"
     @message="({ text, type }) => showMessage(text, type)"
     @download="downloadNewVersion"
+    @reset-download="resetDownloadState"
   />
 
   <!-- ❓ 关闭软件确认询问模态框 -->

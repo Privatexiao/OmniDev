@@ -101,8 +101,17 @@ export function useAppUpdate(appConfig, showMessage) {
     }
   }
 
+  const resetDownloadState = () => {
+    downloadStatus.value = 'idle'
+    downloadError.value = null
+    downloadPercent.value = 0
+    downloadingUpdate.value = false
+    installingAndExiting.value = false
+  }
+
   const downloadNewVersion = async (updateInfo) => {
     if (!updateInfo?.hasUpdate) return
+    resetDownloadState()
     latestUpdateInfo.value = updateInfo
     if (updateInfo.updateMode === 'manual') {
       showInstallConfirm.value = true
@@ -131,6 +140,7 @@ export function useAppUpdate(appConfig, showMessage) {
     installingAndExiting,
     autoCheckAppUpdate,
     downloadNewVersion,
+    resetDownloadState,
     confirmInstallAndExit,
     stopDownloadPolling
   }

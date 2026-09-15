@@ -40,7 +40,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['success', 'message', 'download'])
+const emit = defineEmits(['success', 'message', 'download', 'reset-download'])
 
 const visible = ref(false)
 const activeSettingsTab = ref('basic')
@@ -393,6 +393,7 @@ defineExpose({ show, hide, visible })
             :downloadError="downloadError"
             :installingAndExiting="installingAndExiting"
             @download="updateInfo => emit('download', updateInfo)"
+            @reset-download="emit('reset-download')"
           />
         </div>
       </div>

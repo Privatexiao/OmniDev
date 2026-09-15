@@ -34,8 +34,14 @@ const props = defineProps({
 
 const emit = defineEmits([
   'update:appConfigForm',
-  'download'
+  'download',
+  'reset-download'
 ])
+
+const handleRetry = () => {
+  emit('reset-download')
+  emit('download', updateResult.value)
+}
 
 const updateAutoCheck = (event) => {
   emit('update:appConfigForm', {
@@ -66,6 +72,7 @@ const updateErrorText = computed(() => {
 })
 
 const manualCheckUpdate = async () => {
+  emit('reset-download')
   checkingUpdate.value = true
   updateResult.value = null
   try {
@@ -159,12 +166,21 @@ onMounted(() => {
         <!-- 下载进度条 -->
         <div class="download-progress-container" v-if="downloadingUpdate || downloadStatus === 'error'">
           <div class="progress-bar-wrapper">
-            <div class="progress-bar-fill" :style="{ width: downloadPercent + '%' }"></div>
+            <div class="progress-bar-fill" :class="{ 'is-error': downloadStatus === 'error' }" :style="{ width: (downloadStatus === 'error' ? 100 : downloadPercent) + '%' }"></div>
           </div>
-          <div class="progress-status-row" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-            <span class="progress-percent">
+          <div class="progress-status-row" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px;">
+            <span class="progress-percent" :style="{ color: downloadStatus === 'error' ? '#ef4444' : 'inherit' }">
               {{ progressText }}
             </span>
+            <button
+              v-if="downloadStatus === 'error'"
+              class="btn-pill-primary press-spring"
+              style="padding: 4px 14px; font-size: 11px; height: 26px; border-radius: 9999px; flex-shrink: 0;"
+              @click="handleRetry"
+            >
+              <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 8a7 7 0 1 1 2 4.9M1 13V8h5"/></svg>
+              <span>重试更新</span>
+            </button>
           </div>
         </div>
         <button
