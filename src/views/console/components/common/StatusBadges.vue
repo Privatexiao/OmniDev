@@ -45,18 +45,19 @@ const serviceKey = (env) => `${env.projectId || env.projectName || ''}#${env.env
       <span class="status-dot" :class="{ active: isServerConnected }"></span>
       <span>控制端后台: {{ isServerConnected ? `已启动 (${serverPort})` : '未连接/未启动' }}</span>
       
-      <!-- 🔌 服务未连接时的毛玻璃引导气泡 -->
+      <!-- 服务未连接时的毛玻璃引导气泡 -->
       <div class="custom-tooltip server-hint-tooltip" v-if="!isServerConnected">
         <div class="tooltip-header">
-          <span>⚠️ 控制端后台服务未启动</span>
+          <span>控制端后台服务未启动</span>
         </div>
         <div class="tooltip-divider"></div>
         <div class="tooltip-body">
           <p class="hint-desc">检测到后端服务 (端口 {{ serverPort }}) 尚未运行，大盘数据与环境管理功能暂时不可用。</p>
           <button class="hint-start-btn" @click.stop="$emit('start-server')">
-            🚀 一键启动
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" style="vertical-align: -1px; margin-right: 4px;"><path d="M4.5 3.5v9l8-4.5-8-4.5z"/></svg>
+            <span>一键启动</span>
           </button>
-          <p class="hint-tip">💡 启动后控制台将自动检测并恢复连接。</p>
+          <p class="hint-tip">启动后控制台将自动检测并恢复连接。</p>
         </div>
       </div>
     </div>
@@ -66,10 +67,10 @@ const serviceKey = (env) => `${env.projectId || env.projectName || ''}#${env.env
       <span class="status-dot" :class="{ active: isRunning }"></span>
       <span>本地服务: {{ isRunning ? '正在运行' : '已停止' }}</span>
       
-      <!-- 🌟 超高颜值的毛玻璃悬浮气泡 Tooltip (仅展现所有项目当前启动运行的本地服务) -->
+      <!-- 🌟 毛玻璃悬浮气泡 Tooltip (仅展现所有项目当前启动运行的本地服务) -->
       <div class="custom-tooltip" v-if="allEnvs && allEnvs.length > 0">
         <div class="tooltip-header">
-          <span>🚀 运行中的本地项目 ({{ allEnvs.length }} 个)</span>
+          <span>运行中的本地服务 ({{ allEnvs.length }} 个)</span>
         </div>
         <div class="tooltip-divider"></div>
         <div class="tooltip-body">

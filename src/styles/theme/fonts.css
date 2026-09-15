@@ -1,0 +1,23 @@
+/* ==========================================================================
+   跨平台字体栈与排印规范 (Twin Font Rescue)
+   第一防线: 本地原生 SF Pro / PingFang SC
+   第二防线: 开源近似 Inter (西文) + Noto Sans SC (中文)
+   第三防线: 现代系统通用 UI 字体栈
+   ========================================================================== */
+
+:root {
+  --font-sans: "SF Pro SC", "SF Pro Text", "Inter", BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Menlo", "Monaco", "Consolas", monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-body, -0.006em);
+  line-height: var(--line-height-body, 1.47);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: var(--tracking-h1, -0.022em);
+}

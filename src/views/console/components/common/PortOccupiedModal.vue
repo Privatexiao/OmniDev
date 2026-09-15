@@ -103,40 +103,65 @@ defineExpose({
 
 <template>
   <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
-    <div class="glass-card modal-content animate-zoom" style="max-width: 440px; border: 1px solid rgba(239, 68, 68, 0.3);">
+    <div class="glass-card modal-content animate-zoom port-conflict-modal">
       <div class="modal-header">
-        <h3 class="title-warning">⚠️ 端口冲突警告</h3>
-        <button class="btn-close" @click="hide" :disabled="processing">×</button>
+        <div class="header-left">
+          <div class="header-icon-box warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </div>
+          <div class="header-title-wrap">
+            <h3 class="modal-title">服务端口冲突检测</h3>
+            <p class="modal-desc">核心服务端口已被其他进程占用</p>
+          </div>
+        </div>
+        <button class="btn-close press-spring" @click="hide" :disabled="processing" title="关闭">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body" style="padding-top: 10px;">
-        <p class="modal-intro-text">
-          系统主控服务默认端口 <strong class="highlight-port">{{ occupiedPort }}</strong> 已被占用，导致 Node 后端引擎无法拉起。请选择处理方案：
-        </p>
+
+      <div class="modal-body">
+        <div class="callout-card conflict-callout">
+          <svg class="callout-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="callout-text">
+            系统控制台后端默认端口 <strong class="highlight-port">{{ occupiedPort }}</strong> 正被外部进程占用。请选择恢复策略：
+          </div>
+        </div>
         
         <div class="options-group">
           <!-- 强杀端口选项 -->
           <div 
-            class="option-card" 
+            class="option-card press-spring" 
             :class="{ active: actionChoice === 'kill' }"
             @click="actionChoice = 'kill'"
           >
             <div class="radio-indicator"></div>
             <div class="option-text">
-              <span class="option-title">强杀占用进程并重新启动</span>
-              <span class="option-desc">强力终结当前占用该端口的所有本地后台进程，释放资源后原地重启</span>
+              <span class="option-title">强力释放端口并原地重启</span>
+              <span class="option-desc">终止当前占用该端口的后台残留进程，释放后立即在原端口拉起服务</span>
             </div>
           </div>
           
           <!-- 替换端口选项 -->
           <div 
-            class="option-card" 
+            class="option-card press-spring" 
             :class="{ active: actionChoice === 'change' }"
             @click="actionChoice = 'change'"
           >
             <div class="radio-indicator"></div>
             <div class="option-text">
-              <span class="option-title">修改为新端口再启动</span>
-              <span class="option-desc">修改全局端口配置映射，避开冲突端口，改用新端口拉起引擎</span>
+              <span class="option-title">变更服务端口并重新启动</span>
+              <span class="option-desc">修改全局端口映射与配置，避开冲突端口在新端口启动核心引擎</span>
             </div>
           </div>
         </div>
@@ -145,7 +170,7 @@ defineExpose({
         <transition name="slide-fade">
           <div class="input-container" v-if="actionChoice === 'change'">
             <div class="port-input-wrapper">
-              <label for="port-input-field">设定新服务端口：</label>
+              <label class="form-label" for="port-input-field">设定新服务端口：</label>
               <div class="input-with-suggest">
                 <input 
                   id="port-input-field"
@@ -154,31 +179,35 @@ defineExpose({
                   min="1024" 
                   max="65535"
                   :disabled="processing"
-                  placeholder="请输入端口"
-                  class="port-input-field"
+                  placeholder="端口号"
+                  class="form-control port-input-field"
                 />
-                <span class="suggest-badge" @click="newPort = occupiedPort + 1">
-                  建议: {{ occupiedPort + 1 }}
-                </span>
+                <button type="button" class="suggest-pill press-spring" @click="newPort = occupiedPort + 1">
+                  推荐 {{ occupiedPort + 1 }}
+                </button>
               </div>
             </div>
-            <p class="helper-text">
-              此修改会同步调整“系统设置”与全局 `app.json` 配置的端口映射。
+            <p class="form-help">
+              确认后将自动更新主系统设置及底层 app.json 端口配置文件。
             </p>
           </div>
         </transition>
       </div>
 
-      <div class="modal-footer" style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 16px;">
-        <button class="btn-mini btn-mini-cancel" @click="hide" :disabled="processing">
+      <div class="modal-footer">
+        <button class="btn-pill-secondary press-spring" @click="hide" :disabled="processing">
           取消
         </button>
         <button 
-          class="btn-mini btn-mini-primary btn-run" 
+          class="btn-pill-danger press-spring" 
           @click="handleConfirm" 
           :disabled="processing || (actionChoice === 'change' && !isPortValid)"
         >
-          {{ processing ? '⏳ 处理中...' : '确定' }}
+          <svg v-if="processing" class="spinner-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+            <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+          </svg>
+          <span>{{ processing ? '正在处理...' : (actionChoice === 'kill' ? '强制释放并重启' : '保存并切换端口') }}</span>
         </button>
       </div>
     </div>
@@ -186,34 +215,37 @@ defineExpose({
 </template>
 
 <style scoped>
-.title-warning {
-  color: #ef4444;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.port-conflict-modal {
+  max-width: 480px !important;
 }
 
-.modal-intro-text {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text);
-  margin-bottom: 12px;
-  text-align: left;
+.conflict-callout {
+  background: rgba(255, 59, 48, 0.05) !important;
+  border-color: rgba(255, 59, 48, 0.16) !important;
+  margin-bottom: 14px;
+}
+
+[data-theme="dark"] .conflict-callout {
+  background: rgba(255, 69, 58, 0.1) !important;
+  border-color: rgba(255, 69, 58, 0.22) !important;
+}
+
+.conflict-callout .callout-icon {
+  color: var(--color-danger, #ff3b30) !important;
 }
 
 .highlight-port {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.08);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
+  color: var(--color-danger, #ff3b30);
+  background: rgba(255, 59, 48, 0.08);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .options-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .option-card {
@@ -221,23 +253,33 @@ defineExpose({
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(239, 68, 68, 0.08);
-  background: rgba(239, 68, 68, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .option-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .option-card:hover {
-  border-color: rgba(239, 68, 68, 0.25);
-  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(0, 102, 204, 0.25);
+  background: rgba(0, 102, 204, 0.03);
 }
 
 .option-card.active {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.09);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
+  border-color: var(--color-brand, #0066cc);
+  background: rgba(0, 102, 204, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.08);
+}
+
+[data-theme="dark"] .option-card.active {
+  border-color: #2997ff;
+  background: rgba(41, 151, 255, 0.12);
 }
 
 .radio-indicator {
@@ -245,13 +287,22 @@ defineExpose({
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(239, 68, 68, 0.3);
-  transition: all 0.2s ease;
+  border: 1.5px solid rgba(0, 0, 0, 0.25);
+  transition: all 0.18s ease;
   flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .radio-indicator {
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .option-card.active .radio-indicator {
-  border-color: #ef4444;
+  border-color: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .option-card.active .radio-indicator {
+  border-color: #2997ff;
 }
 
 .option-card.active .radio-indicator::after {
@@ -259,10 +310,14 @@ defineExpose({
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .option-card.active .radio-indicator::after {
+  background: #2997ff;
 }
 
 .option-text {
@@ -273,24 +328,25 @@ defineExpose({
 }
 
 .option-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .option-desc {
   font-size: 11px;
-  color: var(--text-muted, #71717a);
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
-/* 设定新端口排版 */
+/* 设定新端口输入区 */
 .input-container {
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.02);
   border: 1px dashed rgba(0, 0, 0, 0.08);
-  text-align: left;
 }
 
 [data-theme="dark"] .input-container {
@@ -305,12 +361,6 @@ defineExpose({
   gap: 10px;
 }
 
-.port-input-wrapper label {
-  font-size: 12.5px;
-  color: var(--text);
-  font-weight: 500;
-}
-
 .input-with-suggest {
   display: flex;
   align-items: center;
@@ -318,85 +368,56 @@ defineExpose({
 }
 
 .port-input-field {
-  width: 90px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: #ffffff;
-  color: #000000;
-  font-size: 13px;
-  font-weight: 700;
-  outline: none;
-  font-family: monospace;
+  width: 96px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 8px !important;
 }
 
-[data-theme="dark"] .port-input-field {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(30, 41, 59, 0.8);
-  color: #ffffff;
-}
-
-.port-input-field:focus {
-  border-color: #ef4444;
-}
-
-.suggest-badge {
+.suggest-pill {
   font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(99, 102, 241, 0.08);
-  color: #6366f1;
+  font-weight: 550;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill, 980px);
+  background: rgba(0, 102, 204, 0.08);
+  border: 1px solid rgba(0, 102, 204, 0.16);
+  color: var(--color-brand, #0066cc);
   cursor: pointer;
-  user-select: none;
-  font-weight: 500;
-  transition: all 0.2s ease;
+  white-space: nowrap;
+  outline: none;
+  transition: all 0.15s ease;
 }
 
-.suggest-badge:hover {
-  background: #6366f1;
+[data-theme="dark"] .suggest-pill {
+  background: rgba(41, 151, 255, 0.15);
+  border-color: rgba(41, 151, 255, 0.25);
+  color: #2997ff;
+}
+
+.suggest-pill:hover {
+  background: var(--color-brand, #0066cc);
   color: #ffffff;
 }
 
-.helper-text {
-  font-size: 10.5px;
-  color: var(--text-muted, #71717a);
-  margin-top: 6px;
-  line-height: 1.3;
+.spinner-icon {
+  animation: spin 1s linear infinite;
 }
 
-.btn-run {
-  background: #ef4444 !important;
-  color: #ffffff !important;
-  border: 1px solid #ef4444 !important;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.btn-run:hover {
-  background: #dc2626 !important;
-  border-color: #dc2626 !important;
-}
-
-.btn-run:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 动效过渡 */
 .slide-fade-enter-active {
-  transition: all 0.25s ease-out;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .slide-fade-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all 0.15s ease-in;
 }
 .slide-fade-enter-from,
 .slide-fade-leave-to {
-  transform: translateY(-8px);
+  transform: translateY(-6px);
   opacity: 0;
-}
-
-[data-theme="dark"] .option-desc {
-  color: rgba(255, 255, 255, 0.45);
-}
-[data-theme="light"] .option-desc {
-  color: rgba(0, 0, 0, 0.45);
 }
 </style>

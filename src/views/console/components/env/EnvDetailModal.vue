@@ -96,44 +96,93 @@ defineExpose({
   <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content env-detail-modal animate-zoom">
       <div class="modal-header">
-        <h3>环境配置详情: <span class="env-highlight-name">{{ envName }}</span></h3>
-        <button class="btn-close" @click="hide">×</button>
+        <div class="header-left">
+          <div class="header-icon-box brand">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div class="header-title-wrap">
+            <h3 class="modal-title">
+              环境配置明细
+              <span class="env-badge-pill">{{ envName }}</span>
+            </h3>
+            <p class="modal-desc">核对环境的物理端口、登录凭据与线上映射配置</p>
+          </div>
+        </div>
+        <button class="btn-close press-spring" @click="hide" title="关闭">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
       
       <div class="modal-body env-modal-body">
-        <!-- 1. 🔑 基础配置 -->
+        <!-- 1. 基础配置 -->
         <div class="detail-section">
-          <h4 class="section-title">🔑 基础配置</h4>
+          <div class="section-header">
+            <div class="section-title">
+              <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span>基础配置</span>
+            </div>
+          </div>
           <div class="detail-grid">
             <div class="detail-row">
-              <span class="detail-label">企业名称</span>
+              <span class="detail-label">企业描述</span>
               <div class="detail-content">
                 <span class="detail-value text-important">{{ envConfig.company_name || '未配置' }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.company_name)" v-if="envConfig.company_name">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.company_name)" v-if="envConfig.company_name" title="复制企业名称">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
             <div class="detail-row">
-              <span class="detail-label">线上地址</span>
+              <span class="detail-label">线上部署地址</span>
               <div class="detail-content">
                 <span class="detail-value text-link">{{ envConfig.VUE_DEV_HOST || '未配置' }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.VUE_DEV_HOST)" v-if="envConfig.VUE_DEV_HOST">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.VUE_DEV_HOST)" v-if="envConfig.VUE_DEV_HOST" title="复制线上地址">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 2. 💻 本地开发与登录凭证配置 -->
+        <!-- 2. 本地开发与启动配置 -->
         <div class="detail-section">
-          <h4 class="section-title">💻 本地开发与登录凭证配置</h4>
+          <div class="section-header">
+            <div class="section-title">
+              <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span>本地开发与运行态</span>
+            </div>
+          </div>
           <div class="detail-grid">
             <div class="detail-row">
-              <span class="detail-label">本地端口</span>
+              <span class="detail-label">本地服务端口</span>
               <div class="detail-content">
-                <span class="detail-value" :class="envConfig.running ? 'text-success' : 'text-muted'">
-                  {{ envConfig.running ? `🟢 ${envConfig.port || '分配中'}` : '🔴 未运行' }}
+                <span class="detail-status-badge" :class="envConfig.running ? 'running' : 'idle'">
+                  <span class="status-dot"></span>
+                  <span>{{ envConfig.running ? `${envConfig.port || '已启动'}` : '未运行' }}</span>
                 </span>
-                <button class="btn-copy-mini" @click="copyText(String(envConfig.port))" v-if="envConfig.running && envConfig.port">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(String(envConfig.port))" v-if="envConfig.running && envConfig.port" title="复制端口号">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
@@ -141,17 +190,23 @@ defineExpose({
               <span class="detail-label">本地登录子路径</span>
               <div class="detail-content">
                 <span class="detail-value text-code">{{ envConfig.local_login_path }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.local_login_path)">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.local_login_path)" title="复制子路径">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
             <div class="detail-row">
-              <span class="detail-label">指定 Node 版本</span>
+              <span class="detail-label">Node 环境版本</span>
               <div class="detail-content">
-                <span class="detail-value" :class="envConfig.node_version ? 'text-highlight' : 'text-muted'">
-                  {{ envConfig.node_version ? `🟢 ${envConfig.node_version}` : '⚪ 自动探测 (.nvmrc)' }}
+                <span class="node-version-pill">
+                  {{ envConfig.node_version ? `v${envConfig.node_version}` : '自动探测 (.nvmrc)' }}
                 </span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.node_version)" v-if="envConfig.node_version">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.node_version)" v-if="envConfig.node_version" title="复制Node版本">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
@@ -159,23 +214,32 @@ defineExpose({
               <span class="detail-label">自定义启动命令</span>
               <div class="detail-content">
                 <span class="detail-value text-code">{{ envConfig.start_cmd }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.start_cmd)">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.start_cmd)" title="复制启动命令">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
             <div class="detail-row">
-              <span class="detail-label">启动状态</span>
+              <span class="detail-label">启动开关</span>
               <div class="detail-content">
-                <span class="detail-value" :class="envConfig.disable_start ? 'text-danger' : 'text-success'">
-                  {{ envConfig.disable_start ? '已禁用' : '已启用' }}
+                <span class="detail-tag-pill" :class="envConfig.disable_start ? 'disabled-tag' : 'enabled-tag'">
+                  {{ envConfig.disable_start ? '已禁用本地启动' : '已启用启动' }}
                 </span>
               </div>
             </div>
           </div>
 
-          <!-- 子项目动态凭证值 -->
-          <div class="dynamic-credentials" v-if="normalizeCredentialFields(envConfig.credentials).length > 0" style="margin-top: 14px;">
-            <h5 class="sub-section-title" style="margin: 10px 0 8px 0; font-size: 13px; font-weight: 700; color: var(--text);">🔐 登录凭证注入明细 (Cookie / Token)</h5>
+          <!-- 免密登录凭证注入明细 -->
+          <div class="dynamic-credentials" v-if="normalizeCredentialFields(envConfig.credentials).length > 0">
+            <div class="cred-sub-header">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>免密凭据注入明细</span>
+            </div>
             <div class="detail-grid">
               <div class="detail-row" v-for="field in normalizeCredentialFields(envConfig.credentials)" :key="field.key" :class="{ 'cred-detail-disabled': field.enabled === false }">
                 <span class="detail-label" :class="{ 'text-disabled-through': field.enabled === false }">
@@ -187,60 +251,90 @@ defineExpose({
                   <span class="detail-value text-code truncate-value" :class="{ 'text-code-disabled': field.enabled === false }" :title="field.enabled === false ? '该凭证已被禁用，登录时将不注入该字段' : String(field.value)">
                     {{ field.enabled === false ? '已禁用' : (field.value || '未配置') }}
                   </span>
-                  <button class="btn-copy-mini" @click="copyText(String(field.value))" v-if="field.value && field.enabled !== false">复制</button>
+                  <button class="btn-copy-mini press-spring" @click="copyText(String(field.value))" v-if="field.value && field.enabled !== false" title="复制凭据值">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    <span>复制</span>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 3. 🚀 远程部署配置 -->
+        <!-- 3. 远程部署配置 -->
         <div class="detail-section">
-          <h4 class="section-title">🚀 远程部署配置</h4>
+          <div class="section-header">
+            <div class="section-title">
+              <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                <path d="M12 12v9"></path>
+                <path d="m8 17 4 4 4-4"></path>
+              </svg>
+              <span>远程部署配置</span>
+            </div>
+          </div>
           <div class="detail-grid">
             <div class="detail-row">
-              <span class="detail-label">远程部署目录</span>
+              <span class="detail-label">远程部署物理目录</span>
               <div class="detail-content">
                 <span class="detail-value text-code">{{ envConfig.remote_dir || '未配置' }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.remote_dir)" v-if="envConfig.remote_dir">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.remote_dir)" v-if="envConfig.remote_dir" title="复制目录路径">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
             <div class="detail-row">
-              <span class="detail-label">Git 分支状态</span>
+              <span class="detail-label">Git 分支操作</span>
               <div class="detail-content">
-                <span class="detail-value" :class="envConfig.disable_branch ? 'text-danger' : 'text-success'">
-                  {{ envConfig.disable_branch ? '已锁定 (禁用切换分支)' : '正常 (支持远程切换)' }}
+                <span class="detail-tag-pill" :class="envConfig.disable_branch ? 'disabled-tag' : 'enabled-tag'">
+                  {{ envConfig.disable_branch ? '已禁用分支切换' : '支持远程检出' }}
                 </span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 4. 🌐 一键登录配置 -->
+        <!-- 4. 一键登录配置 -->
         <div class="detail-section" v-if="envConfig.login_url || envConfig.online_username">
-          <h4 class="section-title">🌐 一键登录配置</h4>
+          <div class="section-header">
+            <div class="section-title">
+              <svg class="section-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+              <span>一键免密登录参数</span>
+            </div>
+          </div>
           <div class="detail-grid">
             <div class="detail-row" v-if="envConfig.login_url">
               <span class="detail-label">登录直达链接</span>
               <div class="detail-content">
                 <span class="detail-value text-link truncate-value" :title="envConfig.login_url">{{ envConfig.login_url }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.login_url)">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.login_url)" title="复制登录链接">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
             <div class="detail-row" v-if="envConfig.online_username">
-              <span class="detail-label">线上登录账号</span>
+              <span class="detail-label">线上免密账号</span>
               <div class="detail-content">
                 <span class="detail-value text-important">{{ envConfig.online_username }}</span>
-                <button class="btn-copy-mini" @click="copyText(envConfig.online_username)">复制</button>
+                <button class="btn-copy-mini press-spring" @click="copyText(envConfig.online_username)" title="复制账号">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>复制</span>
+                </button>
               </div>
             </div>
 
             <div class="detail-row" v-if="envConfig.login_url">
-              <span class="detail-label">登录浏览器</span>
+              <span class="detail-label">指定拉起浏览器</span>
               <div class="detail-content">
-                <span class="detail-value text-important" style="color: #38bdf8;">
+                <span class="detail-tag-pill browser-tag">
                   {{ envConfig.login_browser === 'msedge' ? 'Microsoft Edge' : 'Chrome / Chromium' }}
                 </span>
               </div>
@@ -250,8 +344,8 @@ defineExpose({
       </div>
 
       <div class="modal-footer">
-        <button class="btn-mini btn-mini-cancel" @click="hide">
-          关闭详情
+        <button class="btn-pill-secondary press-spring" @click="hide">
+          关闭窗口
         </button>
       </div>
     </div>
@@ -260,64 +354,69 @@ defineExpose({
 
 <style scoped>
 .env-detail-modal {
-  width: 680px;
-  max-width: 95%;
-  background: var(--panel-bg);
-  border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  max-width: 680px !important;
+  width: 94vw;
+  border-radius: var(--radius-card, 20px);
 }
 
-[data-theme="dark"] .env-detail-modal {
-  background: #1e293b;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+.env-badge-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 980px);
+  background: rgba(0, 102, 204, 0.08);
+  color: var(--color-brand, #0066cc);
+  border: 1px solid rgba(0, 102, 204, 0.16);
 }
 
-.env-highlight-name {
-  color: #4f46e5;
-  font-weight: 700;
-}
-
-[data-theme="dark"] .env-highlight-name {
-  color: #818cf8;
+[data-theme="dark"] .env-badge-pill {
+  background: rgba(41, 151, 255, 0.15);
+  border-color: rgba(41, 151, 255, 0.25);
+  color: #2997ff;
 }
 
 .detail-section {
-  margin-bottom: 20px;
-  background: rgba(0, 0, 0, 0.01);
-  border-radius: 8px;
-  padding: 14px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.03);
+  background: rgba(0, 0, 0, 0.016);
+  border: 1px solid rgba(0, 0, 0, 0.045);
+  border-radius: 14px;
+  padding: 13px 16px;
+  margin-bottom: 12px;
 }
 
 [data-theme="dark"] .detail-section {
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.022);
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
-.detail-section .section-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #374151;
-  margin: 0 0 12px 0;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+.section-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
-[data-theme="dark"] .detail-section .section-title {
-  color: #e5e7eb;
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.section-icon {
+  color: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .section-icon {
+  color: #2997ff;
 }
 
 .detail-grid {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .detail-row {
@@ -329,87 +428,58 @@ defineExpose({
 }
 
 .detail-label {
-  font-size: 0.85rem;
+  font-size: 12px;
   font-weight: 550;
-  color: #4b5563;
-  min-width: 150px;
+  color: var(--text-secondary, #6e6e73);
+  min-width: 130px;
   white-space: nowrap;
-}
-
-[data-theme="dark"] .detail-label {
-  color: #9ca3af;
+  letter-spacing: var(--tracking-body, -0.006em);
 }
 
 .detail-content {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
 }
 
 .detail-value {
-  font-size: 0.9rem;
+  font-size: 12px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text);
   word-break: break-all;
 }
 
-[data-theme="dark"] .detail-value {
-  color: #f3f4f6;
-}
-
 .detail-value.text-important {
-  color: #4f46e5;
-  font-weight: 700;
-}
-
-[data-theme="dark"] .detail-value.text-important {
-  color: #a5b4fc;
+  color: var(--text);
+  font-weight: 650;
 }
 
 .detail-value.text-link {
-  color: #2563eb;
-  font-family: monospace;
-  font-size: 0.88rem;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  color: var(--color-brand, #0066cc);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  text-decoration: none;
 }
 
 [data-theme="dark"] .detail-value.text-link {
-  color: #60a5fa;
+  color: #2997ff;
 }
 
 .detail-value.text-code {
-  font-family: monospace;
-  font-size: 0.85rem;
-  background: rgba(0, 0, 0, 0.03);
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 7px;
+  border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.05);
-  color: #0f172a;
+  color: var(--text);
 }
 
 [data-theme="dark"] .detail-value.text-code {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.05);
-  color: #cbd5e1;
-}
-
-.detail-value.text-success {
-  color: #16a34a;
-  font-weight: 700;
-}
-
-[data-theme="dark"] .detail-value.text-success {
-  color: #4ade80;
-}
-
-.detail-value.text-danger {
-  color: #dc2626;
-  font-weight: 700;
-}
-
-[data-theme="dark"] .detail-value.text-danger {
-  color: #f87171;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .truncate-value {
@@ -420,21 +490,169 @@ defineExpose({
   display: inline-block;
 }
 
+/* 状态与指示胶囊 */
+.detail-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 980px);
+}
+
+.detail-status-badge.running {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--success, #34c759);
+}
+
+.detail-status-badge.idle {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .detail-status-badge.idle {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.detail-status-badge.running .status-dot {
+  box-shadow: 0 0 6px currentColor;
+}
+
+.node-version-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 980px);
+  background: rgba(0, 0, 0, 0.045);
+  color: var(--text);
+}
+
+[data-theme="dark"] .node-version-pill {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.detail-tag-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 980px);
+}
+
+.detail-tag-pill.enabled-tag {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--success, #34c759);
+}
+
+.detail-tag-pill.disabled-tag {
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--color-danger, #ff3b30);
+}
+
+.detail-tag-pill.browser-tag {
+  background: rgba(0, 102, 204, 0.08);
+  color: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .detail-tag-pill.browser-tag {
+  background: rgba(41, 151, 255, 0.15);
+  color: #2997ff;
+}
+
+/* 凭据明细 */
+.dynamic-credentials {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .dynamic-credentials {
+  border-top-color: rgba(255, 255, 255, 0.05);
+}
+
+.cred-sub-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.auth-key-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill, 980px);
+  background: rgba(0, 102, 204, 0.08);
+  color: var(--color-brand, #0066cc);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+[data-theme="dark"] .auth-key-pill {
+  background: rgba(41, 151, 255, 0.15);
+  color: #2997ff;
+}
+
+.btn-copy-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 500;
+  border-radius: var(--radius-pill, 980px);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .btn-copy-mini {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.btn-copy-mini:hover {
+  background: var(--color-brand, #0066cc);
+  border-color: var(--color-brand, #0066cc);
+  color: #ffffff;
+}
+
+[data-theme="dark"] .btn-copy-mini:hover {
+  background: #2997ff;
+  border-color: #2997ff;
+  color: #ffffff;
+}
+
 .cred-detail-disabled {
-  opacity: 0.65;
+  opacity: 0.55;
 }
 
 .text-disabled-through {
   text-decoration: line-through;
-  color: var(--text-muted) !important;
 }
 
 .cred-disabled-hint-text {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
-  margin-left: 4px;
   text-decoration: none;
-  display: inline-block;
 }
 
 .auth-key-pill-disabled {
@@ -446,24 +664,5 @@ defineExpose({
   background: rgba(120, 120, 120, 0.04) !important;
   color: var(--text-muted) !important;
   cursor: not-allowed;
-}
-
-.btn-copy-mini {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.auth-key-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 90px;
-  flex-shrink: 0;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(99, 102, 241, 0.08);
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 600;
 }
 </style>

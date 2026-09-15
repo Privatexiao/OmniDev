@@ -203,47 +203,92 @@ defineExpose({ show, hide, visible })
     <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
       <div class="glass-card modal-content import-preview-modal animate-zoom">
         <div class="modal-header">
-          <h3>📥 勾选要导入的项目与环境</h3>
-          <button class="btn-close" @click="hide">✕</button>
+          <div class="header-left">
+            <div class="header-icon-box brand">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            </div>
+            <div class="header-title-wrap">
+              <h3 class="modal-title">导入配置预览与确认</h3>
+              <p class="modal-desc">解析备份包成功，请勾选需导入的项目及各环境节点</p>
+            </div>
+          </div>
+          <button class="btn-close press-spring" @click="hide" title="关闭">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
+
         <div class="modal-body import-preview-body">
-          <p class="import-preview-desc">我们已解析您上传的配置包，请勾选您希望导入的部分。您可以在项目右侧为其指定本地工作目录（可选）：</p>
+          <div class="callout-card">
+            <svg class="callout-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <div class="callout-text">
+              勾选目标项目与其下属环境，可在右侧设定或校对本地物理工作目录。已有同名环境将被安全合并。
+            </div>
+          </div>
           
           <div class="import-projects-tree">
             <div v-for="proj in importProjectsList" :key="proj.id" class="import-proj-node">
-              
               <!-- 项目级节点 -->
               <div class="proj-node-header">
-                <label class="checkbox-label flex-align-center">
-                  <input type="checkbox" v-model="proj.selected" @change="handleProjectSelectChange(proj)" />
-                  <span class="proj-node-name">📂 {{ proj.name }}</span>
+                <label class="form-checkbox-label">
+                  <input type="checkbox" v-model="proj.selected" class="form-checkbox" @change="handleProjectSelectChange(proj)" />
+                  <span class="checkbox-box mini">
+                    <svg class="check-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </span>
+                  <div class="proj-title-wrap">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="proj-folder-icon">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span class="proj-node-name">{{ proj.name }}</span>
+                  </div>
                 </label>
                 
                 <div class="proj-path-input-group">
                   <span class="proj-path-label">工作目录:</span>
-                  <input type="text" v-model="proj.path" placeholder="可选，例如 E:\projects\my-project" class="form-control mini-path-input" />
+                  <input type="text" v-model="proj.path" placeholder="可选，指定该项目本地物理绝对路径" class="form-control mini-path-input" />
                 </div>
               </div>
               
               <!-- 环境子列表 -->
               <div class="proj-node-envs-list">
                 <div v-for="env in proj.envs" :key="env.key" class="env-node-item">
-                  <label class="checkbox-label flex-align-center">
-                    <input type="checkbox" v-model="env.selected" @change="handleEnvSelectChange(proj)" />
-                    <span class="env-node-key">⚡ {{ env.key }}</span>
+                  <label class="form-checkbox-label">
+                    <input type="checkbox" v-model="env.selected" class="form-checkbox" @change="handleEnvSelectChange(proj)" />
+                    <span class="checkbox-box mini">
+                      <svg class="check-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </span>
+                    <span class="env-node-key">{{ env.key }}</span>
                     <span class="env-node-desc" v-if="env.companyName">({{ env.companyName }})</span>
                   </label>
                   <span class="env-node-host truncate-value" v-if="env.raw.VUE_DEV_HOST" :title="env.raw.VUE_DEV_HOST">{{ env.raw.VUE_DEV_HOST }}</span>
                 </div>
               </div>
-              
             </div>
           </div>
         </div>
+
         <div class="modal-footer">
-          <button class="btn-mini btn-mini-cancel" @click="hide">取消</button>
-          <button class="btn-mini btn-mini-primary" :disabled="importing" @click="submitImportSelection">
-            {{ importing ? '正在导入...' : '✅ 确认导入所选配置' }}
+          <button class="btn-pill-secondary press-spring" @click="hide" :disabled="importing">取消</button>
+          <button class="btn-pill-primary press-spring" :disabled="importing" @click="submitImportSelection">
+            <svg v-if="importing" class="spinner-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+              <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+            </svg>
+            <span>{{ importing ? '正在导入配置...' : '确认导入所选' }}</span>
           </button>
         </div>
       </div>
@@ -252,115 +297,84 @@ defineExpose({ show, hide, visible })
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.35);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
 .import-preview-modal {
-  width: 680px;
-  max-width: 95vw;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(120, 120, 120, 0.1);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--text);
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0;
-  line-height: 1;
-}
-
-.modal-body {
-  padding: 20px;
-}
-
-.modal-footer {
-  display: flex;
-  gap: 8px;
-  padding: 14px 20px;
-  border-top: 1px solid rgba(120, 120, 120, 0.1);
-  justify-content: flex-end;
+  max-width: 680px !important;
+  width: 94vw;
+  border-radius: var(--radius-card, 20px);
 }
 
 .import-preview-body {
-  padding: 16px 20px;
-}
-
-.import-preview-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  margin-bottom: 16px;
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .import-projects-tree {
   max-height: 380px;
   overflow-y: auto;
-  border: 1px solid rgba(120, 120, 120, 0.15);
-  border-radius: 8px;
-  background: rgba(120, 120, 120, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.015);
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
-/* 滚动条精细美化 */
-.import-projects-tree::-webkit-scrollbar {
-  width: 4px;
-}
-.import-projects-tree::-webkit-scrollbar-thumb {
-  background: rgba(120, 120, 120, 0.15);
-  border-radius: 4px;
+[data-theme="dark"] .import-projects-tree {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .import-proj-node {
-  border: 1px solid rgba(120, 120, 120, 0.1);
-  border-radius: 8px;
-  background: rgba(120, 120, 120, 0.02);
-  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  background: var(--panel-bg, #ffffff);
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .import-proj-node {
+  background: #1f2027;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .proj-node-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(120, 120, 120, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
+[data-theme="dark"] .proj-node-header {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.proj-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proj-folder-icon {
+  color: var(--color-brand, #0066cc);
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .proj-folder-icon {
+  color: #2997ff;
+}
+
 .proj-node-name {
-  font-weight: 700;
-  font-size: 13.5px;
+  font-weight: 650;
+  font-size: 13px;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .proj-path-input-group {
@@ -373,7 +387,7 @@ defineExpose({ show, hide, visible })
 }
 
 .proj-path-label {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-muted);
 }
 
@@ -388,7 +402,7 @@ defineExpose({ show, hide, visible })
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-left: 14px;
+  padding-left: 24px;
 }
 
 .env-node-item {
@@ -413,75 +427,24 @@ defineExpose({ show, hide, visible })
 
 .env-node-host {
   font-size: 11px;
-  font-family: monospace;
-  color: var(--primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--color-brand, #0066cc);
   max-width: 240px;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
 }
 
-.flex-align-center {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
+[data-theme="dark"] .env-node-host {
+  color: #2997ff;
 }
 
-.checkbox-label input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  cursor: pointer;
+.spinner-icon {
+  animation: spin 1s linear infinite;
 }
 
-.btn-mini {
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s;
-}
-
-.btn-mini-primary {
-  background: var(--primary);
-  color: #fff;
-}
-.btn-mini-primary:hover {
-  opacity: 0.9;
-}
-.btn-mini-cancel {
-  background: rgba(120, 120, 120, 0.08);
-  border-color: rgba(120, 120, 120, 0.15);
-  color: var(--text);
-}
-.btn-mini-cancel:hover {
-  background: rgba(120, 120, 120, 0.16);
-}
-.btn-mini:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.animate-zoom {
-  animation: zoomIn 0.2s ease;
-}
-@keyframes zoomIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.form-control {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(120, 120, 120, 0.2);
-  background: rgba(120, 120, 120, 0.05);
-  color: var(--text);
-  font-size: 13px;
-  outline: none;
-}
-.form-control:focus {
-  border-color: var(--primary);
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

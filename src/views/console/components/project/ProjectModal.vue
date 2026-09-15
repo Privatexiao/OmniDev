@@ -111,36 +111,63 @@ defineExpose({
   <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content animate-zoom">
       <div class="modal-header">
-        <h3>{{ mode === 'edit' ? '✏️ 修改项目分支配置' : '➕ 登记新项目分支' }}</h3>
-        <button class="btn-close" @click="hide">×</button>
+        <div class="header-left">
+          <div class="header-icon-box brand">
+            <svg v-if="mode === 'edit'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              <line x1="12" y1="11" x2="12" y2="17"></line>
+              <line x1="9" y1="14" x2="15" y2="14"></line>
+            </svg>
+          </div>
+          <div class="header-title-wrap">
+            <h3 class="modal-title">{{ mode === 'edit' ? '修改项目配置' : '登记新项目' }}</h3>
+            <p class="modal-desc">{{ mode === 'edit' ? '更新项目展示名称或物理工作目录' : '在工作区绑定新的本地物理目录' }}</p>
+          </div>
+        </div>
+        <button class="btn-close press-spring" @click="hide" title="关闭">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
+
       <div class="modal-body">
         <div class="form-group">
-          <label>项目名称</label>
+          <label class="form-label">项目名称</label>
           <input 
             type="text" 
             v-model="projectName" 
-            placeholder="请输入您的项目名称..." 
+            placeholder="例如: 微客 CRM 前端、AI 工作流后台..." 
             class="form-control"
           />
         </div>
         <div class="form-group">
-          <label>项目工作目录绝对路径</label>
+          <label class="form-label">项目工作目录绝对路径</label>
           <input
             type="text"
             v-model="projectPath"
-            placeholder="请输入项目工作目录在本地磁盘的绝对路径..."
+            placeholder="例如: E:\projects\wweike-crm-fe"
             class="form-control"
           />
-          <p class="form-help">填什么路径，启动与终端就在该目录下执行，系统不再追加任何子目录。</p>
+          <p class="form-help">开发启动与 Git 终端均在该物理目录下就地执行，系统不会追加多余子目录。</p>
         </div>
       </div>
+
       <div class="modal-footer">
-        <button class="btn-mini btn-mini-cancel" @click="hide" :disabled="loading">
+        <button class="btn-pill-secondary press-spring" @click="hide" :disabled="loading">
           取消
         </button>
-        <button class="btn-mini btn-mini-primary" @click="save" :disabled="loading">
-          {{ loading ? (mode === 'edit' ? '正在保存...' : '正在登记...') : (mode === 'edit' ? '确认保存' : '确认登记') }}
+        <button class="btn-pill-primary press-spring" @click="save" :disabled="loading">
+          <svg v-if="loading" class="spinner-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+            <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+          </svg>
+          <span>{{ loading ? (mode === 'edit' ? '正在保存...' : '正在登记...') : (mode === 'edit' ? '保存配置' : '确认登记') }}</span>
         </button>
       </div>
     </div>
@@ -148,5 +175,12 @@ defineExpose({
 </template>
 
 <style scoped>
-/* 继承主控制台的样式逻辑，使用 scoped 隔离保护 */
+.spinner-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 </style>

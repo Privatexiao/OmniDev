@@ -301,7 +301,9 @@ onMounted(() => {
             @click="handleCopyBranch"
             :title="copied ? '已成功复制到剪贴板！' : '点击复制分支全名'"
           >
-            {{ copied ? '✅ 已复制！' : currentBranch }}
+            <svg v-if="copied" class="branch-tag-svg" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
+            <svg v-else class="branch-tag-svg" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="7" r="2"/><path d="M4 6v4M4 8a4 4 0 0 0 6-1"/></svg>
+            <span class="branch-name-text">{{ copied ? '已复制' : currentBranch }}</span>
           </span>
           <span class="branch-icon-buttons">
             <button 
@@ -310,7 +312,7 @@ onMounted(() => {
               :disabled="loadingBranch || switching || !canUseBranch" 
               :title="canUseBranch ? '刷新远程分支状态' : branchDisabledReason"
             >
-              🔄
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.2-3.4M2.5 3v2.5H5"/></svg>
             </button>
             <button 
               class="btn-icon-action" 
@@ -318,64 +320,79 @@ onMounted(() => {
               :disabled="switching || loadingBranch || !canUseBranch"
               :title="canUseBranch ? '切远程分支' : branchDisabledReason"
             >
-              🔀
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="7" r="2"/><path d="M4 6v4M4 8a4 4 0 0 0 6-1"/></svg>
             </button>
           </span>
         </div>
       </div>
-      <span class="text-muted" v-else>分支已禁用</span>
+      <div class="branch-cell-wrapper" v-else>
+        <span class="clickable-branch branch-disabled" title="当前环境已禁用远程分支操作">
+          <svg class="branch-tag-svg" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M4.5 4.5l7 7"/></svg>
+          <span class="branch-name-text">分支已禁用</span>
+        </span>
+      </div>
     </td>
-
-
 
     <!-- 8. 统一操作栏 -->
     <td class="col-actions">
       <div class="row-actions-wrapper">
-        <button 
-          v-if="isRunning" 
-          class="btn btn-danger btn-sm" 
-          @click="handleStop"
-          title="⏹️ 停止开发服务"
-        >
-          ⏹️
-        </button>
-        <button 
-          v-else 
-          class="btn btn-primary btn-sm" 
-          :class="{ 'btn-disabled': config.disable_start }"
-          :disabled="config.disable_start"
-          @click="handleStart"
-          :title="config.disable_start ? '当前环境已禁用本地开发服务启动' : '▶️ 启动开发服务'"
-        >
-          ▶️
-        </button>
+        <!-- 运行中：停止按钮 + 本地直达微按键 -->
+        <template v-if="isRunning">
+          <button 
+            class="action-pill-btn stop-btn" 
+            @click="handleStop"
+            title="停止本地开发服务"
+          >
+            <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>
+          </button>
+
+          <button 
+            v-if="port"
+            class="action-pill-btn local-btn" 
+            :class="{ 'btn-disabled': !canLaunch }"
+            :disabled="!canLaunch"
+            @click="handleLaunch('local')"
+            :title="canLaunch ? '直达并登录本地页面' : launchDisabledReason"
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M1 13h14"/></svg>
+          </button>
+        </template>
         
+        <!-- 未运行：纯正的播放圆形微按键 -->
+        <template v-else>
+          <button 
+            class="action-pill-btn play-btn" 
+            :class="{ 'btn-disabled': config.disable_start }"
+            :disabled="config.disable_start"
+            @click="handleStart"
+            :title="config.disable_start ? '当前环境已禁用本地开发服务启动' : '启动开发服务'"
+          >
+            <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><path d="M4.5 3.5v9l8-4.5-8-4.5z"/></svg>
+          </button>
+        </template>
+        
+        <!-- 线上登录 -->
         <button 
-          class="btn btn-secondary btn-sm" 
+          class="action-pill-btn launch-btn" 
           :class="{ 'btn-disabled': !canLaunchOnline }"
           :disabled="!canLaunchOnline"
           @click="handleLaunch('online')"
-          :title="canLaunchOnline ? '🌐 登录线上环境' : launchOnlineDisabledReason"
+          :title="canLaunchOnline ? '登录线上环境' : launchOnlineDisabledReason"
         >
-          🌐
-        </button>
-        
-        <button 
-          v-if="isRunning && port && hasLoginCredential"
-          class="btn btn-success btn-sm" 
-          :class="{ 'btn-disabled': !canLaunch }"
-          :disabled="!canLaunch"
-          @click="handleLaunch('local')"
-          :title="canLaunch ? '💻 登录本地端口' : launchDisabledReason"
-        >
-          💻
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2a9 9 0 0 1 3 6 9 9 0 0 1-3 6 9 9 0 0 1 3-6z"/></svg>
         </button>
 
         <span class="actions-divider"></span>
 
-        <span class="action-btn edit-env-btn" @click.stop="emit('editEnv', name, config)" title="编辑环境配置">✏️</span>
-        <span class="action-btn delete-env-btn" @click.stop="emit('deleteEnv', name)" title="删除环境配置">🗑️</span>
-        <span class="action-btn detail-env-btn" @click.stop="emit('showDetail', name, config)" title="查看数据详情">👁️</span>
+        <button class="action-pill-btn icon-btn" @click.stop="emit('editEnv', name, config)" title="编辑环境配置">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3L5 14H2v-3L11 2z"/></svg>
+        </button>
+        <button class="action-pill-btn icon-btn danger-hover" @click.stop="emit('deleteEnv', name)" title="删除环境配置">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M6 4V2.5h4V4M5 4v9h6V4"/></svg>
+        </button>
+        <button class="action-pill-btn icon-btn" @click.stop="emit('showDetail', name, config)" title="查看数据详情">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="2"/><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/></svg>
+        </button>
       </div>
 
       <!-- 统一高颜值中央分支输入模态框 (放置于TD内部保障HTML完美渲染) -->
@@ -395,71 +412,94 @@ onMounted(() => {
   border-bottom-color: rgba(255, 255, 255, 0.05);
 }
 
-/* 正在运行的环境背景 */
+/* 正在运行的环境背景：温润翡翠绿通透微光高亮 */
 .env-row.row-running {
-  background: rgba(16, 185, 129, 0.02);
+  background: rgba(52, 199, 89, 0.045) !important;
 }
 
 [data-theme="dark"] .env-row.row-running {
-  background: rgba(16, 185, 129, 0.04);
+  background: rgba(52, 199, 89, 0.08) !important;
 }
 
-.env-row:hover,
+.env-row:hover {
+  background: var(--surface-hover, #fafafc);
+}
+
 .env-row.row-running:hover {
-  background: rgba(99, 102, 241, 0.04);
+  background: rgba(52, 199, 89, 0.075) !important;
 }
 
-[data-theme="dark"] .env-row:hover,
+[data-theme="dark"] .env-row:hover {
+  background: var(--surface-hover, #242426);
+}
+
 [data-theme="dark"] .env-row.row-running:hover {
-  background: rgba(129, 140, 248, 0.08);
+  background: rgba(52, 199, 89, 0.12) !important;
 }
 
 /* 当前处于激活编辑/日志回显的环境高亮 */
 .env-row.row-active-env {
-  border-left: 3px solid #6366f1;
+  background: rgba(0, 102, 204, 0.04) !important;
 }
 
 [data-theme="dark"] .env-row.row-active-env {
-  border-left-color: #818cf8;
+  background: rgba(41, 151, 255, 0.07) !important;
 }
 
 td {
-  padding: 8px 12px;
+  padding: 10px 14px;
   vertical-align: middle;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: var(--text);
   white-space: nowrap;
 }
 
 .col-status {
   text-align: center;
-  width: 40px;
+  width: 44px;
+}
+
+.col-port {
+  text-align: center;
+  width: 120px;
+}
+
+.col-branch {
+  text-align: left;
+  vertical-align: middle;
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
-  background-color: #6b7280;
+  background-color: #8e8e93;
   border-radius: 50%;
   display: inline-block;
   transition: all 0.3s ease;
 }
 
 .status-dot.active {
-  background-color: #10b981;
-  box-shadow: 0 0 10px #10b981, 0 0 4px #10b981;
+  background-color: var(--color-success, #34c759);
+  box-shadow: 0 0 10px rgba(52, 199, 89, 0.8), 0 0 2px rgba(52, 199, 89, 0.9);
   animation: status-pulse-glow 1.8s infinite ease-in-out;
 }
 
 @keyframes status-pulse-glow {
-  0%, 100% { opacity: 0.7; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.1); }
+  0%, 100% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.18); }
 }
 
 .env-name-text {
-  font-weight: 800;
-  font-size: 0.88rem;
+  font-weight: 650;
+  font-size: 0.92rem;
+  letter-spacing: -0.012em;
   color: var(--text);
+  transition: color 0.2s ease;
+}
+
+.env-row.row-running .env-name-text {
+  color: #10b981;
+  font-weight: 700;
 }
 
 /* ⚡ 端口胶囊 */
@@ -467,14 +507,14 @@ td {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  background: rgba(16, 185, 129, 0.08);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  padding: 1px 6px;
-  border-radius: 12px;
-  font-family: monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(52, 199, 89, 0.08);
+  color: var(--color-success, #34c759);
+  border: 1px solid rgba(52, 199, 89, 0.2);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 980px);
+  font-family: var(--font-mono, monospace);
 }
 
 .port-badge.offline {
@@ -506,85 +546,153 @@ td {
 
 /* Git Branch */
 .branch-cell-wrapper {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
 }
 
 .branch-actions-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
+  max-width: 100%;
 }
 
 .clickable-branch {
   cursor: pointer;
-  background: rgba(16, 185, 129, 0.06);
-  color: #10b981;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
   padding: 3px 12px;
-  border-radius: 6px;
-  font-weight: 750;
-  font-size: 0.72rem;
-  transition: all 0.2s ease;
-  border: 1px solid rgba(16, 185, 129, 0.15);
+  height: 26px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill, 980px);
+  font-weight: 500;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   white-space: nowrap;
-  max-width: none;
+  width: 380px;
+  max-width: 380px;
   text-overflow: ellipsis;
   overflow: hidden;
   text-align: left;
-  display: inline-block;
-  flex: 1;
-  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
 }
 
 [data-theme="dark"] .clickable-branch {
-  background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.07);
 }
 
-.clickable-branch:hover {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.3);
+.clickable-branch:hover:not(.branch-disabled) {
+  background: var(--surface, #ffffff);
+  border-color: rgba(0, 102, 204, 0.3);
+  color: var(--color-brand, #0066cc);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .clickable-branch:hover:not(.branch-disabled) {
+  background: #2c2c2e;
+  border-color: rgba(41, 151, 255, 0.4);
+  color: #2997ff;
+}
+
+.clickable-branch.branch-disabled {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.05);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+[data-theme="dark"] .clickable-branch.branch-disabled {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.branch-tag-svg {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+.clickable-branch:hover:not(.branch-disabled) .branch-tag-svg {
+  opacity: 1;
 }
 
 .clickable-branch.branch-loading {
-  background: rgba(245, 158, 11, 0.06);
-  color: #f59e0b;
-  border-color: rgba(245, 158, 11, 0.15);
+  background: rgba(255, 149, 0, 0.08);
+  color: var(--color-warning, #ff9500);
+  border-color: rgba(255, 149, 0, 0.2);
 }
 
-.clickable-branch.copied,
-[data-theme="dark"] .clickable-branch.copied {
-  background: rgba(16, 185, 129, 0.16);
-  color: #10b981;
-  border-color: rgba(16, 185, 129, 0.4);
+.clickable-branch.copied {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--color-success, #34c759);
+  border-color: rgba(52, 199, 89, 0.3);
 }
 
+.clickable-branch.copied .branch-tag-svg {
+  opacity: 1;
+  color: var(--color-success, #34c759);
+}
+
+.branch-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+/* 🌟 刷新与切换分支按键：默认轻量隐式，hover 表格行时平滑淡入，位置固定整齐 */
 .branch-icon-buttons {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: 4px;
 }
 
+.env-row:hover .branch-icon-buttons {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 🌟 无边框纯净微图标：悬浮时平滑变色高亮 + 物理弹性微缩放，摆脱生硬圆圈感 */
 .btn-icon-action {
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
   border: none;
-  font-size: 0.75rem;
+  color: var(--text-secondary, #6e6e73);
+  opacity: 0.75;
   cursor: pointer;
-  padding: 2px;
+  padding: 0;
   border-radius: 4px;
-  opacity: 0.6;
-  transition: all 0.2s ease;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
 }
 
 .btn-icon-action:hover:not(:disabled) {
+  color: var(--color-brand, #0066cc);
   opacity: 1;
-  background: rgba(99, 102, 241, 0.08);
-  transform: scale(1.1);
+  background: transparent;
+  transform: scale(1.18);
+}
+
+[data-theme="dark"] .btn-icon-action:hover:not(:disabled) {
+  color: #2997ff;
 }
 
 .btn-icon-action:disabled {
-  opacity: 0.25;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
@@ -718,55 +826,145 @@ td {
 .row-actions-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+  justify-content: flex-end;
 }
 
-.row-actions-wrapper .btn {
-  padding: 5px 10px;
-  font-size: 0.72rem;
-  font-weight: 750;
-  border-radius: 6px;
-  line-height: 1.2;
+.action-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.035);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.6, 1);
+  outline: none;
+  padding: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .action-pill-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+
+.action-pill-btn:hover:not(:disabled) {
+  background: var(--surface, #ffffff);
+  color: var(--text, #111827);
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  transform: translateY(-0.5px);
+}
+
+[data-theme="dark"] .action-pill-btn:hover:not(:disabled) {
+  background: #32333d;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.action-pill-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.action-pill-btn.play-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary, #6b7280);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .action-pill-btn.play-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
+}
+
+.action-pill-btn.play-btn:hover:not(:disabled) {
+  background: var(--color-brand, #0066cc);
+  border-color: var(--color-brand, #0066cc);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 102, 204, 0.28);
+  transform: translateY(-0.5px);
+}
+
+[data-theme="dark"] .action-pill-btn.play-btn:hover:not(:disabled) {
+  background: #2997ff;
+  border-color: #2997ff;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(41, 151, 255, 0.35);
+}
+
+/* 🌟 运行中专属高光“直达本地”纯微图标 */
+.action-pill-btn.local-btn {
+  background: rgba(52, 199, 89, 0.1);
+  border-color: rgba(52, 199, 89, 0.28);
+  color: var(--color-success, #34c759);
+}
+
+.action-pill-btn.local-btn:hover:not(:disabled) {
+  background: var(--color-success, #34c759);
+  border-color: var(--color-success, #34c759);
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(52, 199, 89, 0.35);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .action-pill-btn.local-btn {
+  background: rgba(52, 199, 89, 0.15);
+  border-color: rgba(52, 199, 89, 0.3);
+  color: #34c759;
+}
+
+[data-theme="dark"] .action-pill-btn.local-btn:hover:not(:disabled) {
+  background: #34c759;
+  border-color: #34c759;
+  color: #ffffff;
+}
+
+.action-pill-btn.stop-btn {
+  background: rgba(255, 59, 48, 0.08);
+  border-color: rgba(255, 59, 48, 0.2);
+  color: var(--color-danger, #ff3b30);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .action-pill-btn.stop-btn {
+  background: rgba(255, 59, 48, 0.14);
+  border-color: rgba(255, 59, 48, 0.25);
+}
+
+.action-pill-btn.stop-btn:hover:not(:disabled) {
+  background: var(--color-danger, #ff3b30);
+  border-color: var(--color-danger, #ff3b30);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(255, 59, 48, 0.25);
+}
+
+.action-pill-btn.danger-hover:hover:not(:disabled) {
+  color: var(--color-danger, #ff3b30);
+  border-color: rgba(255, 59, 48, 0.4);
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.action-pill-btn.btn-disabled,
+.action-pill-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 .actions-divider {
   width: 1px;
-  height: 14px;
+  height: 12px;
   background: rgba(0, 0, 0, 0.08);
-  margin: 0 4px;
+  margin: 0 2px;
   display: inline-block;
-}
-
-[data-theme="dark"] .actions-divider {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.action-btn {
-  font-size: 0.8rem;
-  cursor: pointer;
-  opacity: 0.6;
-  transform: scale(0.95);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-}
-
-.action-btn:hover {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-.edit-env-btn:hover {
-  color: #f59e0b;
-}
-
-.delete-env-btn:hover {
-  color: #ef4444;
-}
-
-.detail-env-btn:hover {
-  color: #3b82f6;
 }
 </style>

@@ -66,23 +66,36 @@ defineExpose({
 </script>
 
 <template>
-  <!-- 🌿 引入通用 Modal 骨架底座，并将确认、取消事件与业务层绑定 -->
   <Modal 
     ref="modalRef" 
     :title="title" 
     @confirm="handleConfirm" 
     @cancel="handleCancel"
   >
-    <!-- 分支输入特化内容（填入默认插槽） -->
+    <template #icon>
+      <div class="header-icon-box brand">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="6" y1="3" x2="6" y2="15"></line>
+          <circle cx="18" cy="6" r="3"></circle>
+          <circle cx="6" cy="18" r="3"></circle>
+          <path d="M18 9a9 9 0 0 1-9 9"></path>
+        </svg>
+      </div>
+    </template>
+
     <div class="branch-modal-body">
-      <input 
-        ref="inputRef"
-        v-model="value" 
-        type="text" 
-        :placeholder="placeholder" 
-        class="modal-input" 
-        @keyup.enter="handleConfirm"
-      />
+      <div class="form-group">
+        <label class="form-label">目标分支标识</label>
+        <input 
+          ref="inputRef"
+          v-model="value" 
+          type="text" 
+          :placeholder="placeholder" 
+          class="form-control" 
+          @keyup.enter="handleConfirm"
+        />
+        <p class="form-help">请输入 Git 远端已存在的有效分支名称，确认后将在指定工作目录下执行安全检出。</p>
+      </div>
     </div>
   </Modal>
 </template>
@@ -90,38 +103,5 @@ defineExpose({
 <style scoped>
 .branch-modal-body {
   width: 100%;
-}
-
-.modal-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
-  padding: 11px 14px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-  outline: none;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01);
-}
-
-[data-theme="dark"] .modal-input {
-  background: rgba(30, 41, 59, 0.75);
-  border-color: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.modal-input:focus {
-  border-color: #3b82f6;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
-}
-
-[data-theme="dark"] .modal-input:focus {
-  background: rgba(30, 41, 59, 0.9);
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
 }
 </style>

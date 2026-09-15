@@ -228,27 +228,60 @@ defineExpose({ show, hide, visible })
   <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
     <div class="glass-card modal-content settings-modal animate-zoom">
       <div class="modal-header">
-        <h3>⚙️ 系统设置</h3>
-        <button class="btn-close" @click="hide">×</button>
+        <div class="header-left">
+          <div class="header-icon-box brand">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="modal-title">系统偏好设置</h3>
+            <p class="modal-desc">管理 OmniDev 端口、窗口行为、运行日志与多端同步配置</p>
+          </div>
+        </div>
+        <button class="btn-close press-spring" @click="hide" title="关闭" aria-label="关闭">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 3l10 10M13 3L3 13" />
+          </svg>
+        </button>
       </div>
 
       <div class="settings-layout">
         <!-- 左侧 Tab 导航 -->
         <div class="settings-tabs">
-          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'basic' }" @click="activeSettingsTab = 'basic'">💻 基础配置</button>
-          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'window' }" @click="activeSettingsTab = 'window'">🔔 窗口行为</button>
-          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'cleanup' }" @click="activeSettingsTab = 'cleanup'">🧹 系统清理</button>
-          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'sync' }" @click="activeSettingsTab = 'sync'">🔄 同步与备份</button>
-          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'logs' }" @click="activeSettingsTab = 'logs'">📂 运行日志</button>
-          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'about' }" @click="activeSettingsTab = 'about'">ℹ️ 关于与更新</button>
+          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'basic' }" @click="activeSettingsTab = 'basic'">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="2.5" width="12" height="8.5" rx="1.5"/><path d="M5 14h6M8 11v3"/></svg>
+            <span>基础配置</span>
+          </button>
+          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'window' }" @click="activeSettingsTab = 'window'">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="2.5" width="12" height="10" rx="2"/><path d="M2 5.5h12M5 4h.01M7.5 4h.01"/></svg>
+            <span>窗口行为</span>
+          </button>
+          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'cleanup' }" @click="activeSettingsTab = 'cleanup'">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 4.5h12M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M4 4.5l.8 9.2a1.5 1.5 0 0 0 1.5 1.3h3.4a1.5 1.5 0 0 0 1.5-1.3l.8-9.2M6.5 7.5v4M9.5 7.5v4"/></svg>
+            <span>系统清理</span>
+          </button>
+          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'sync' }" @click="activeSettingsTab = 'sync'">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M14 8A6 6 0 1 1 8 2c2.2 0 4.1 1.2 5.2 3M14 2v3.2h-3.2"/></svg>
+            <span>同步备份</span>
+          </button>
+          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'logs' }" @click="activeSettingsTab = 'logs'">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 2.5h7l3 3V13a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13V4A1.5 1.5 0 0 1 3 2.5zM10 2.5V6h3M4.5 9h7M4.5 11.5h4.5"/></svg>
+            <span>运行日志</span>
+          </button>
+          <button class="settings-tab-btn" :class="{ active: activeSettingsTab === 'about' }" @click="activeSettingsTab = 'about'">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 4.5h.01"/></svg>
+            <span>关于更新</span>
+          </button>
         </div>
 
         <!-- 右侧内容 -->
         <div class="settings-content">
-          <!-- 💻 基础配置 -->
+          <!-- 基础配置 -->
           <SettingsBasic v-if="activeSettingsTab === 'basic'" v-model:appConfigForm="appConfigForm" />
 
-          <!-- 🔔 窗口关闭偏好 -->
+          <!-- 窗口关闭偏好 -->
           <SettingsWindow
             v-if="activeSettingsTab === 'window'"
             v-model:appCloseBehavior="appCloseBehavior"
@@ -256,18 +289,26 @@ defineExpose({ show, hide, visible })
             v-model:killServerOnClose="appConfigForm.killServerOnClose"
           />
 
-          <!-- 🧹 系统清理 -->
+          <!-- 系统清理 -->
           <div v-if="activeSettingsTab === 'cleanup'" class="animate-fade-in settings-section">
             <div class="settings-header">
-              <h4 class="settings-title">🧹 全局系统安全清理</h4>
+              <h4 class="settings-title">全局系统安全清理</h4>
               <p class="settings-desc">安全强杀所有项目注册的本地端口与残留子进程，释放系统资源</p>
             </div>
-            <button class="btn-mini btn-mini-cancel" :disabled="cleaningAllResources" @click="cleanAllResources">
-              🔄 {{ cleaningAllResources ? '正在强制回收...' : '一键强制回收全部项目资源' }}
-            </button>
+            <div class="cleanup-action-card">
+              <div class="cleanup-card-desc">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="var(--color-warning, #f59e0b)" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11.5h.01"/></svg>
+                <span>若遇到本地服务僵死、端口占用无法启动时，可执行一键回收强杀进程。</span>
+              </div>
+              <button class="btn-pill-secondary press-spring" :disabled="cleaningAllResources" @click="cleanAllResources">
+                <svg v-if="cleaningAllResources" class="spin-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6" stroke-dasharray="28" stroke-dashoffset="10"/></svg>
+                <svg v-else viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M14 8A6 6 0 1 1 8 2c2.2 0 4.1 1.2 5.2 3M14 2v3.2h-3.2"/></svg>
+                <span>{{ cleaningAllResources ? '正在强制回收...' : '一键强制回收全部项目资源' }}</span>
+              </button>
+            </div>
           </div>
 
-          <!-- 🔄 同步与备份 -->
+          <!-- 同步与备份 -->
           <SettingsSync
             v-if="activeSettingsTab === 'sync'"
             :closeOnOverlayClick="closeOnOverlayClick"
@@ -276,16 +317,18 @@ defineExpose({ show, hide, visible })
             @message="msg => emit('message', msg)"
           />
 
-          <!-- 📂 运行日志 -->
+          <!-- 运行日志 -->
           <div v-if="activeSettingsTab === 'logs'" class="animate-fade-in settings-section">
             <div class="settings-header">
-              <h4 class="settings-title">📂 运行日志</h4>
+              <h4 class="settings-title">运行日志</h4>
               <p class="settings-desc">管理并定位 OmniDev 服务引擎所产生的本地运行日志</p>
             </div>
             
             <div class="logs-manager-card">
               <div class="logs-card-header">
-                <span class="logs-card-icon">📂</span>
+                <div class="header-icon-box brand">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 2.5h7l3 3V13a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13V4A1.5 1.5 0 0 1 3 2.5zM10 2.5V6h3M4.5 9h7M4.5 11.5h4.5"/></svg>
+                </div>
                 <div class="logs-card-info">
                   <span class="logs-card-title">物理运行日志目录</span>
                   <span class="logs-card-desc">日志文件隔离存放在系统指定的本地 AppData 或运行根目录的 logs/ 文件夹下。</span>
@@ -294,17 +337,20 @@ defineExpose({ show, hide, visible })
               <p class="logs-help-text">
                 当遇到 SSH 连接异常、服务被死锁占用、Git 构建冲突等故障排查场景时，建议打开本端日志以获取最完整的底噪及 stdout/stderr 输出。
               </p>
-              <div style="margin-top: 16px;">
-                <button class="btn-open-log-folder" :disabled="openingLogFolder" @click="openLogFolder">
-                  📂 {{ openingLogFolder ? '正在打开目录...' : '打开运行日志目录' }}
+              <div style="margin-top: 14px;">
+                <button class="btn-pill-secondary press-spring" :disabled="openingLogFolder" @click="openLogFolder">
+                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1.5 4a1.5 1.5 0 0 1 1.5-1.5h3.1a1.5 1.5 0 0 1 1.06.44l1.34 1.34a1.5 1.5 0 0 0 1.06.44H13A1.5 1.5 0 0 1 14.5 6v6.5a1.5 1.5 0 0 1-1.5 1.5H3a1.5 1.5 0 0 1-1.5-1.5V4z"/></svg>
+                  <span>{{ openingLogFolder ? '正在打开目录...' : '打开运行日志目录' }}</span>
                 </button>
               </div>
             </div>
 
-            <!-- 🕒 日志保留设置 -->
-            <div class="logs-manager-card" style="margin-top: 16px;">
+            <!-- 日志保留设置 -->
+            <div class="logs-manager-card" style="margin-top: 14px;">
               <div class="logs-card-header">
-                <span class="logs-card-icon">🕒</span>
+                <div class="header-icon-box brand">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>
+                </div>
                 <div class="logs-card-info">
                   <span class="logs-card-title">历史日志保留规则</span>
                   <span class="logs-card-desc">设定本地运行日志文件的最长留存天数，超时将由控制台自动清理。</span>
@@ -313,7 +359,7 @@ defineExpose({ show, hide, visible })
               
               <div class="log-retention-setting" style="margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                 <span style="font-size: 13px; color: var(--text); font-weight: 500;">保留期限：</span>
-                <select v-model="appConfigForm.logKeepType" class="form-control" style="width: 140px; font-size: 13px; padding: 4px 8px; border: 1px solid rgba(120, 120, 120, 0.2); border-radius: 6px; background: rgba(120, 120, 120, 0.05); color: var(--text); outline: none;">
+                <select v-model="appConfigForm.logKeepType" class="form-control" style="width: 140px; font-size: 12px;">
                   <option value="3">3 天（默认）</option>
                   <option value="7">7 天</option>
                   <option value="15">15 天</option>
@@ -329,7 +375,7 @@ defineExpose({ show, hide, visible })
                     min="1" 
                     max="365" 
                     class="form-control" 
-                    style="width: 80px; text-align: center; font-size: 13px; padding: 4px 8px; border: 1px solid rgba(120, 120, 120, 0.2); border-radius: 6px; background: rgba(120, 120, 120, 0.05); color: var(--text); outline: none;"
+                    style="width: 80px; text-align: center; font-size: 12px;"
                   />
                   <span style="font-size: 13px; color: var(--text);">天</span>
                 </div>
@@ -337,7 +383,7 @@ defineExpose({ show, hide, visible })
             </div>
           </div>
 
-          <!-- ℹ️ 关于与更新 -->
+          <!-- 关于与更新 -->
           <SettingsAbout
             v-if="activeSettingsTab === 'about'"
             v-model:appConfigForm="appConfigForm"
@@ -351,12 +397,18 @@ defineExpose({ show, hide, visible })
         </div>
       </div>
 
-      <!-- 底部保存/取消按钮 -->
-      <div class="modal-footer" v-if="activeSettingsTab === 'basic' || activeSettingsTab === 'window' || activeSettingsTab === 'about' || activeSettingsTab === 'logs'">
-        <button class="btn-mini btn-mini-cancel" @click="hide">取消</button>
-        <button class="btn-mini btn-mini-primary" :disabled="savingAppConfig" @click="saveSettings">
-          {{ savingAppConfig ? '保存中...' : '保存' }}
-        </button>
+      <!-- 底部保存/取消操作栏，常驻以锁定高度与布局稳定性 -->
+      <div class="modal-footer">
+        <template v-if="activeSettingsTab === 'basic' || activeSettingsTab === 'window' || activeSettingsTab === 'about' || activeSettingsTab === 'logs'">
+          <button class="btn-pill-secondary press-spring" @click="hide">取消</button>
+          <button class="btn-pill-primary press-spring" :disabled="savingAppConfig" @click="saveSettings">
+            <svg v-if="savingAppConfig" class="spin-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6" stroke-dasharray="28" stroke-dashoffset="10"/></svg>
+            <span>{{ savingAppConfig ? '保存中...' : '保存配置' }}</span>
+          </button>
+        </template>
+        <template v-else>
+          <button class="btn-pill-secondary press-spring" @click="hide">关闭</button>
+        </template>
       </div>
     </div>
   </div>

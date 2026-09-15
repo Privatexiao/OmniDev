@@ -57,8 +57,8 @@ const progressText = computed(() => {
 
 const updateActionText = computed(() => {
   return updateResult.value?.updateMode === 'manual'
-    ? '⬆️ 查看并确认重大版本更新'
-    : '⚡ 应用内更新并重启'
+    ? '查看并确认重大版本更新'
+    : '应用内更新并重启'
 })
 
 const updateErrorText = computed(() => {
@@ -95,81 +95,95 @@ onMounted(() => {
 <template>
   <div class="animate-fade-in settings-section">
     <div class="settings-header">
-      <h4 class="settings-title">ℹ️ 关于与更新</h4>
+      <h4 class="settings-title">关于与更新</h4>
       <p class="settings-desc">查看 OmniDev 版本信息及检查更新设置</p>
     </div>
 
-    <div class="about-brand-card" style="background: rgba(255, 255, 255, 0.4); border: 1px solid rgba(120, 120, 120, 0.15); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
-      <div class="brand-logo-area" style="display: flex; align-items: center; gap: 12px;">
-        <span class="brand-logo" style="font-size: 2.2rem;">🚀</span>
-        <div class="brand-info" style="display: flex; flex-direction: column;">
-          <span class="brand-name" style="font-size: 15px; font-weight: 800;">OmniDev 控制台</span>
-          <span class="brand-version" style="font-size: 11px; color: var(--text-muted);">当前版本: v{{ currentVersion }}</span>
+    <div class="about-brand-card">
+      <div class="brand-logo-area">
+        <div class="header-icon-box brand" style="width: 44px; height: 44px; border-radius: 12px;">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+            <path d="M9 12H4s.55-3.03 2-4.5c1.62-1.63 5-2 5-2"/>
+            <path d="M12 9V4s3.03.55 4.5 2c1.63 1.62 2 5 2 5"/>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <span class="brand-name">OmniDev 控制台</span>
+          <span class="brand-version">当前版本: v{{ currentVersion }}</span>
         </div>
       </div>
-      <p class="brand-desc" style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0; line-height: 1.5;">
+      <p class="brand-desc">
         多环境一键启停与快捷同源免密登录开发者大盘控制台。
       </p>
     </div>
 
     <div class="form-group" style="margin-top: 16px; margin-bottom: 16px;">
-      <label class="checkbox-label" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+      <label class="checkbox-label">
         <input type="checkbox" :checked="appConfigForm.autoCheckUpdate" @change="updateAutoCheck" />
         <span>启动软件时自动检查更新</span>
       </label>
     </div>
 
-    <div class="update-action-row" style="margin-top: 16px; display: flex; gap: 8px;">
-      <button class="btn-mini btn-mini-primary check-update-btn" :disabled="checkingUpdate" @click="manualCheckUpdate">
-        {{ checkingUpdate ? '正在检查...' : '🔍 立即检查更新' }}
+    <div class="update-action-row" style="margin-top: 14px; display: flex; gap: 8px;">
+      <button class="btn-pill-secondary press-spring check-update-btn" :disabled="checkingUpdate" @click="manualCheckUpdate">
+        <svg v-if="checkingUpdate" class="spin-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6" stroke-dasharray="28" stroke-dashoffset="10"/></svg>
+        <svg v-else viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+        <span>{{ checkingUpdate ? '正在检查...' : '检查更新' }}</span>
       </button>
     </div>
 
     <!-- 检查更新结果 -->
-    <div v-if="updateResult" class="update-result-card animate-fade-in" style="margin-top: 16px; background: rgba(0, 0, 0, 0.03); border: 1px solid rgba(120, 120, 120, 0.1); border-radius: 8px; padding: 14px;">
+    <div v-if="updateResult" class="update-result-card animate-fade-in" style="margin-top: 16px;">
       <div v-if="updateResult.success === false" class="update-check-error">
-        <p class="update-error-title">⚠️ 更新检查失败</p>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="var(--color-danger, #ef4444)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11.5h.01"/></svg>
+          <p class="update-error-title">更新检查未完成</p>
+        </div>
         <p class="update-error-detail">{{ updateErrorText }}</p>
       </div>
       <div v-else-if="updateResult.hasUpdate" class="update-found">
         <div class="update-found-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-          <span class="update-badge" style="background: #ef4444; color: #ffffff; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px;">NEW</span>
-          <span class="update-title" style="font-size: 13px; font-weight: 700;">发现新版本 v{{ updateResult.latestVersion }} !</span>
+          <span class="update-badge">NEW</span>
+          <span class="update-title">发现新版本 v{{ updateResult.latestVersion }}</span>
           <span class="update-mode-badge">
             {{ updateResult.updateMode === 'manual' ? '重大版本' : '应用内更新' }}
           </span>
         </div>
         <div class="changelog-area" style="margin-bottom: 12px;">
-          <h5 style="margin: 0 0 6px 0; font-size: 12px;">📝 更新日志：</h5>
-          <pre style="margin: 0; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 11.5px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;">{{ updateResult.changelog }}</pre>
+          <h5 style="margin: 0 0 6px 0; font-size: 12px; color: var(--text);">更新日志</h5>
+          <pre>{{ updateResult.changelog }}</pre>
         </div>
         
         <!-- 下载进度条 -->
-        <div class="download-progress-container" v-if="downloadingUpdate || downloadStatus === 'error'" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.1); border-radius: 6px; padding: 10px; margin-top: 8px;">
-          <div class="progress-bar-wrapper" style="height: 6px; background: rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; width: 100%;">
-            <div class="progress-bar-fill" :style="{ width: downloadPercent + '%', height: '100%', background: '#6366f1', transition: 'width 0.3s' }"></div>
+        <div class="download-progress-container" v-if="downloadingUpdate || downloadStatus === 'error'">
+          <div class="progress-bar-wrapper">
+            <div class="progress-bar-fill" :style="{ width: downloadPercent + '%' }"></div>
           </div>
-          <div class="progress-status-row" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <span class="progress-percent" style="margin: 0; font-size: 11px; font-weight: 600;">
+          <div class="progress-status-row" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+            <span class="progress-percent">
               {{ progressText }}
             </span>
           </div>
         </div>
         <button
           v-else
-          class="btn-mini btn-mini-primary download-update-btn"
+          class="btn-pill-primary press-spring download-update-btn"
           :disabled="!updateResult.signatureAvailable || installingAndExiting"
           :title="updateResult.signatureAvailable ? '' : '更新源缺少 Tauri 签名'"
           @click="emit('download', updateResult)"
         >
-          {{ updateActionText }}
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2.5v9M4 7.5l4-4 4 4M2 13.5h12"/></svg>
+          <span>{{ updateActionText }}</span>
         </button>
         <p v-if="!updateResult.signatureAvailable" class="update-signature-warning">
           更新源未提供有效签名，已禁止下载和执行。
         </p>
       </div>
-      <div v-else class="update-not-found">
-        <p class="update-success-msg" style="margin: 0; font-size: 12px; color: #10b981; font-weight: 600;">🎉 当前已是最新版本 (v{{ updateResult.currentVersion }})，无需更新。</p>
+      <div v-else class="update-not-found" style="display: flex; align-items: center; gap: 8px;">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="var(--color-success, #10b981)" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><polyline points="5 8 7 10 11 6"/></svg>
+        <p class="update-success-msg" style="margin: 0; font-size: 12px; color: #10b981; font-weight: 600;">当前已是最新版本 (v{{ updateResult.currentVersion }})，无需更新。</p>
       </div>
     </div>
   </div>

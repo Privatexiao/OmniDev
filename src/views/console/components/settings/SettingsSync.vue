@@ -151,15 +151,15 @@ onMounted(() => {
 <template>
   <div class="animate-fade-in settings-section">
     <div class="settings-header">
-      <h4 class="settings-title">🔄 同步与备份</h4>
+      <h4 class="settings-title">同步与备份</h4>
       <p class="settings-desc">导出当前项目环境及凭证架构为团队配置文件，或从他人处导入配置</p>
     </div>
 
     <!-- 导出 -->
     <div class="sync-card export-card">
-      <h5>📤 导出当前配置</h5>
+      <h5>导出当前配置</h5>
       <p class="sync-card-desc">将当前项目环境定义及凭证字段架构打包导出（所有敏感值默认已脱敏）</p>
-      <div class="export-dir-row" style="display: flex; gap: 6px; margin-bottom: 12px;">
+      <div class="export-dir-row" style="display: flex; gap: 8px; margin-bottom: 12px;">
         <input
           v-model="exportDir"
           type="text"
@@ -169,8 +169,9 @@ onMounted(() => {
           @blur="saveExportDir"
           @keyup.enter="saveExportDir"
         />
-        <button class="btn-mini btn-mini-cancel" style="margin: 0; padding: 0 12px;" :disabled="pickingDir" @click="pickExportFolder">
-          📂
+        <button class="btn-pill-secondary press-spring" style="padding: 0 14px; height: 34px;" :disabled="pickingDir" @click="pickExportFolder" title="浏览选择文件夹">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1.5 4a1.5 1.5 0 0 1 1.5-1.5h3.1a1.5 1.5 0 0 1 1.06.44l1.34 1.34a1.5 1.5 0 0 0 1.06.44H13A1.5 1.5 0 0 1 14.5 6v6.5a1.5 1.5 0 0 1-1.5 1.5H3a1.5 1.5 0 0 1-1.5-1.5V4z"/></svg>
+          <span style="font-size: 12px;">浏览</span>
         </button>
       </div>
       <div class="form-group" style="margin-bottom: 12px;">
@@ -179,25 +180,37 @@ onMounted(() => {
           <span>是否连同隐私数据（密码和凭证内容）一起导出</span>
         </label>
       </div>
-      <p v-if="lastExportPath" class="export-result" style="font-size: 11.5px; margin: 0 0 12px 0;">
-        ✅ 已导出：<span class="export-path" style="word-break: break-all; font-family: monospace;">{{ lastExportPath }}</span>
-        <a href="#" class="open-folder-link" style="margin-left: 8px; color: var(--primary);" @click.prevent="openExportFolder">打开文件夹 ↗</a>
+      <p v-if="lastExportPath" class="export-result" style="font-size: 11.5px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="var(--color-success, #10b981)" stroke-width="2" stroke-linecap="round"><polyline points="3.5 8.5 6.5 11.5 12.5 5.5"/></svg>
+        <span>已导出：</span>
+        <span class="export-path" style="word-break: break-all; font-family: monospace;">{{ lastExportPath }}</span>
+        <a href="#" class="open-folder-link" style="margin-left: 8px;" @click.prevent="openExportFolder">打开文件夹 ↗</a>
       </p>
-      <button class="btn-mini btn-mini-primary sync-btn" :disabled="exporting" @click="exportConfig">
-        {{ exporting ? '导出中...' : '导出' }}
+      <button class="btn-pill-primary press-spring" :disabled="exporting" @click="exportConfig">
+        <svg v-if="exporting" class="spin-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6" stroke-dasharray="28" stroke-dashoffset="10"/></svg>
+        <svg v-else viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.5v9M4 7.5l4-4 4 4M2 13.5h12"/></svg>
+        <span>{{ exporting ? '正在导出...' : '导出配置文件' }}</span>
       </button>
     </div>
 
     <!-- 导入 -->
     <div class="sync-card" style="margin-top: 16px;">
-      <h5>📥 导入团队配置</h5>
+      <h5>导入团队配置</h5>
       <p class="sync-card-desc">从团队配置包中安全导入或一键选择合并项目环境配置</p>
-      <button class="btn-mini btn-mini-primary sync-btn import-btn" @click="triggerImportFile">导入</button>
+      <button class="btn-pill-secondary press-spring" @click="triggerImportFile">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 11.5V2.5M4 6.5l4 4 4-4M2 13.5h12"/></svg>
+        <span>选择配置文件导入</span>
+      </button>
       <input type="file" ref="fileInput" class="hidden-file-input" style="display: none;" accept=".json" @change="handleImportFile" />
     </div>
 
     <!-- 导入成功弹窗 -->
-    <Modal ref="importModalRef" title="✅ 导入成功" :showFooter="true" @confirm="handleImportModalConfirm" @cancel="handleImportModalCancel">
+    <Modal ref="importModalRef" title="导入成功" :showFooter="true" @confirm="handleImportModalConfirm" @cancel="handleImportModalCancel">
+      <template #icon>
+        <div class="header-icon-box success" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2);">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3.5 8.5 6.5 11.5 12.5 5.5"/></svg>
+        </div>
+      </template>
       <div class="import-success-body" style="font-size: 12.5px; line-height: 1.6; display: flex; flex-direction: column; gap: 10px;">
         <p class="import-success-intro">
           新项目 <b>「{{ importResult?.project?.name }}」</b> 已成功注册，包含
@@ -229,7 +242,7 @@ onMounted(() => {
         </ol>
       </div>
       <template #footer>
-        <button class="btn-mini btn-mini-primary" @click="handleImportModalConfirm">知道了</button>
+        <button class="btn-pill-primary press-spring" @click="handleImportModalConfirm">知道了</button>
       </template>
     </Modal>
 

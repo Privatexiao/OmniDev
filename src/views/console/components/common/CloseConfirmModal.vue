@@ -65,51 +65,71 @@ defineExpose({
 
 <template>
   <div class="modal-overlay" v-if="visible" @click.self="handleOverlayClick">
-    <div class="glass-card modal-content animate-zoom" style="max-width: 420px; border: 1px solid rgba(99, 102, 241, 0.25);">
+    <div class="glass-card modal-content animate-zoom close-confirm-modal">
       <div class="modal-header">
-        <h3>关闭 OmniDev</h3>
-        <button class="btn-close" @click="hide">×</button>
+        <div class="header-left">
+          <div class="header-icon-box brand">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+              <line x1="12" y1="2" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <div class="header-title-wrap">
+            <h3 class="modal-title">关闭 OmniDev</h3>
+            <p class="modal-desc">请选择应用退出方式与后台策略</p>
+          </div>
+        </div>
+        <button class="btn-close press-spring" @click="hide" title="关闭">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body" style="padding-top: 10px;">
-        <span style="font-size: 14px; line-height: 1; color: var(--text); font-weight: 500;">
-          选择关闭方式
-        </span>
+
+      <div class="modal-body">
         <div class="options-group">
           <div 
-            class="option-card" 
+            class="option-card press-spring" 
             :class="{ active: closeChoice === 'minimize' }"
             @click="closeChoice = 'minimize'"
           >
             <div class="radio-indicator"></div>
             <div class="option-text">
-              <span class="option-title">最小化到系统托盘</span>
-              <span class="option-desc">应用将在后台静默运行，可双击托盘图标重新唤醒</span>
+              <span class="option-title">最小化到系统托盘 (推荐)</span>
+              <span class="option-desc">应用将在后台持续保持服务监听，双击托盘图标可秒级唤醒</span>
             </div>
           </div>
           
           <div 
-            class="option-card" 
+            class="option-card press-spring" 
             :class="{ active: closeChoice === 'close' }"
             @click="closeChoice = 'close'"
           >
             <div class="radio-indicator"></div>
             <div class="option-text">
-              <span class="option-title">退出 OmniDev</span>
-              <span class="option-desc">彻底关闭所有开发环境进程，释放系统资源</span>
+              <span class="option-title">彻底退出应用程序</span>
+              <span class="option-desc">终止全部后台守护进程并释放物理端口与系统内存资源</span>
             </div>
           </div>
         </div>
       </div>
-      <div class="modal-footer" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px;">
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12.5px; user-select: none;">
-          <input type="checkbox" v-model="rememberCloseChoice" style="cursor: pointer; accent-color: var(--primary); width: 14px; height: 14px;" />
-          <span style="color: var(--text-muted, #71717a);">不再提示 (设置中可调)</span>
+
+      <div class="modal-footer footer-between">
+        <label class="form-checkbox-label" title="记住选择">
+          <input type="checkbox" v-model="rememberCloseChoice" class="form-checkbox" />
+          <span class="checkbox-box mini">
+            <svg class="check-icon" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="checkbox-subtext">不再提示 (可在设置中修改)</span>
         </label>
-        <div style="display: flex; gap: 10px;">
-          <button class="btn-mini btn-mini-cancel" @click="hide">
+        <div class="footer-actions">
+          <button class="btn-pill-secondary press-spring" @click="hide">
             取消
           </button>
-          <button class="btn-mini btn-mini-primary" @click="handleConfirm">
+          <button class="btn-pill-primary press-spring" @click="handleConfirm">
             确定
           </button>
         </div>
@@ -119,11 +139,14 @@ defineExpose({
 </template>
 
 <style scoped>
+.close-confirm-modal {
+  max-width: 440px !important;
+}
+
 .options-group {
-  /* margin: 16px 0; */
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .option-card {
@@ -131,23 +154,33 @@ defineExpose({
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(99, 102, 241, 0.08);
-  background: rgba(99, 102, 241, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .option-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .option-card:hover {
-  border-color: rgba(99, 102, 241, 0.25);
-  background: rgba(99, 102, 241, 0.05);
+  border-color: rgba(0, 102, 204, 0.25);
+  background: rgba(0, 102, 204, 0.03);
 }
 
 .option-card.active {
-  border-color: var(--primary);
-  background: rgba(99, 102, 241, 0.09);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+  border-color: var(--color-brand, #0066cc);
+  background: rgba(0, 102, 204, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.08);
+}
+
+[data-theme="dark"] .option-card.active {
+  border-color: #2997ff;
+  background: rgba(41, 151, 255, 0.12);
 }
 
 .radio-indicator {
@@ -155,13 +188,22 @@ defineExpose({
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(99, 102, 241, 0.3);
-  transition: all 0.2s ease;
+  border: 1.5px solid rgba(0, 0, 0, 0.25);
+  transition: all 0.18s ease;
   flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .radio-indicator {
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .option-card.active .radio-indicator {
-  border-color: var(--primary);
+  border-color: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .option-card.active .radio-indicator {
+  border-color: #2997ff;
 }
 
 .option-card.active .radio-indicator::after {
@@ -169,10 +211,14 @@ defineExpose({
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .option-card.active .radio-indicator::after {
+  background: #2997ff;
 }
 
 .option-text {
@@ -183,21 +229,32 @@ defineExpose({
 }
 
 .option-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .option-desc {
   font-size: 11px;
-  color: var(--text-muted, #71717a);
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
-/* 兼容暗色/亮色主题 */
-[data-theme="dark"] .option-desc {
-  color: rgba(255, 255, 255, 0.45);
+.footer-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between !important;
 }
-[data-theme="light"] .option-desc {
-  color: rgba(0, 0, 0, 0.45);
+
+.checkbox-subtext {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
