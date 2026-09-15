@@ -63,8 +63,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="projects-tabs-bar">
-    <div class="tabs-container">
+  <div class="projects-bar-row">
+    <!-- 🍎 紧凑型 Segmented Control 分段控制器 -->
+    <div class="segmented-control" v-if="projects.length > 0">
       <button 
         v-for="proj in projects" 
         :key="proj.id" 
@@ -74,187 +75,178 @@ onUnmounted(() => {
         @mouseenter="handleProjectMouseEnter(proj.id)"
         @mouseleave="handleProjectMouseLeave"
       >
-        <span class="tab-icon">📁</span>
+        <svg class="tab-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l1.5 2h7.5v7h-13z"/></svg>
         <span class="tab-name">{{ proj.name }}</span>
         <div class="tab-actions" v-if="hoveredProjectId === proj.id" @click.stop>
-          <span class="action-btn edit" @click.stop="openEditProject(proj)" title="修改项目配置">✏️</span>
-          <span class="action-btn delete" @click.stop="deleteProject(proj.id, proj.name)" title="删除项目登记">🗑️</span>
+          <span class="action-btn edit" @click.stop="openEditProject(proj)" title="修改项目配置">
+            <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M11 2l3 3L5 14H2v-3L11 2z"/></svg>
+          </span>
+          <span class="action-btn delete" @click.stop="deleteProject(proj.id, proj.name)" title="删除项目登记">
+            <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M6 4V2.5h4V4M5 4v9h6V4"/></svg>
+          </span>
         </div>
       </button>
-      
-      <button class="tab-btn-add" @click="openAddProject" title="登记新开发项目分支">
-        ➕ 新增项目
-      </button>
     </div>
+    
+    <!-- 独立新增项目胶囊按键 -->
+    <button class="tab-btn-add press-spring" @click="openAddProject" title="登记新开发项目分支">
+      <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+      <span>新增项目</span>
+    </button>
   </div>
 </template>
 
 <style scoped>
-.projects-tabs-bar {
-  margin: 0.8rem 0;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);
-  transition: all 0.3s ease;
-}
-
-[data-theme="dark"] .projects-tabs-bar {
-  background: rgba(15, 23, 42, 0.4);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.tabs-container {
+.projects-bar-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  justify-content: space-between;
   align-items: center;
+  margin: 12px 0 14px 0;
+}
+
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.045);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-pill, 980px);
+  padding: 3px;
+  gap: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .segmented-control {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .tab-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill, 980px);
+  padding: 5px 14px;
+  height: 28px;
   cursor: pointer;
-  text-align: left;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
   box-sizing: border-box;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  color: var(--text-secondary, #6e6e73);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-body, -0.006em);
 }
 
-[data-theme="dark"] .tab-btn {
-  background: rgba(30, 41, 59, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.tab-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(99, 102, 241, 0.35);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
-}
-
-[data-theme="dark"] .tab-btn:hover {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(99, 102, 241, 0.45);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+.tab-btn:hover:not(.active) {
+  color: var(--text, #1d1d1f);
 }
 
 .tab-btn.active {
-  background: var(--btn-primary-bg);
-  border-color: var(--btn-primary-color);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
-  transform: translateY(-0.5px);
+  background: #ffffff;
+  color: var(--text, #1d1d1f);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="dark"] .tab-btn.active {
-  background: var(--btn-primary-bg);
-  border-color: var(--btn-primary-color);
-  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.12);
+  background: #282930;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .tab-icon {
-  font-size: 0.95rem;
-  opacity: 0.85;
-  transition: transform 0.2s ease;
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
 }
 
-.tab-btn:hover .tab-icon {
-  transform: scale(1.1);
+.tab-btn.active .tab-icon {
+  opacity: 1;
+  color: var(--color-brand, #0066cc);
 }
 
 .tab-name {
-  font-size: 0.82rem;
-  font-weight: 750;
-  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: inherit;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
-  transition: color 0.2s ease;
 }
 
 .tab-btn.active .tab-name {
-  color: var(--btn-primary-color);
+  font-weight: 600;
 }
 
 .tab-btn-add {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(99, 102, 241, 0.06);
-  border: 1px dashed rgba(99, 102, 241, 0.25);
-  color: var(--primary);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 0.76rem;
-  font-weight: 700;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary, #6e6e73);
+  border-radius: var(--radius-pill, 980px);
+  padding: 0 14px;
+  height: 30px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-body, -0.006em);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.6, 1);
   outline: none;
-  margin-left: auto;
+}
+
+[data-theme="dark"] .tab-btn-add {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
 }
 
 .tab-btn-add:hover {
-  background: rgba(99, 102, 241, 0.12);
-  border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
-  transform: translateY(-1px);
+  background: var(--surface, #ffffff);
+  color: var(--color-brand, #0066cc);
+  border-color: rgba(0, 102, 204, 0.25);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .tab-btn-add:hover {
+  background: #2c2c2e;
+  color: #2997ff;
+  border-color: #2997ff;
 }
 
 .tab-actions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  animation: fadeInActions 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes fadeInActions {
-  from {
-    opacity: 0;
-    transform: translateX(5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  gap: 4px;
+  margin-left: 2px;
 }
 
 .action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill, 9999px);
   background: rgba(0, 0, 0, 0.05);
-  font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  color: var(--text-secondary, #6b7280);
 }
 
 [data-theme="dark"] .action-btn {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.tab-btn.active .action-btn {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-color);
+  background: rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
 }
 
 .action-btn:hover {
-  transform: scale(1.15);
+  transform: scale(1.1);
 }
 
 .action-btn.edit:hover {

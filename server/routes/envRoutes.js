@@ -28,7 +28,8 @@ import {
   getEnvConfig,
   saveCommonEnvConfig,
   deleteCommonEnvConfig,
-  normalizeCredentialFields
+  normalizeCredentialFields,
+  batchUpdateEnvsConfig
 } from '../services/envService.js';
 import { securityService } from '../services/securityService.js';
 
@@ -294,6 +295,33 @@ router.post('/api/envs/edit', (req, res) => {
     res.json({ success: true, message: `环境 [${cleanNewKey}] 的配置已成功修改！` });
   } catch (err) {
     res.status(500).json({ error: '修改环境配置失败: ' + err.message });
+  }
+});
+
+// ==================== POST /api/envs/batch-update ====================
+
+router.post('/api/envs/batch-update', (req, res) => {
+  const { projectId, updates } = req.body || {};
+
+  const currentProj = getActiveProject();
+  if (projectId && currentProj && currentProj.id && currentProj.id !== projectId) {
+    return res.status(403).json({ error: '项目凭证已失效或操作不属于当前激活项目' });
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return res.status(400).json({ error: '未提供有效的环境批量更新数据' });
+  }
+
+  try {
+    const result = batchUpdateEnvsConfig(projectId, updates);
+    res.json({
+      success: true,
+      updatedCount: result.updatedCount,
+      message: `成功批量更新 ${result.updatedCount} 组环境配置！`
+    });
+  } catch (err) {
+    console.error('[DevAssistant] 批量更新环境配置失败:', err);
+    res.status(500).json({ error: '批量更新环境配置失败: ' + err.message });
   }
 });
 

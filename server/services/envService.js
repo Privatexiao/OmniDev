@@ -235,3 +235,56 @@ export function inferCredentialEnvVarMap(dotenvContent) {
 
   return result;
 }
+
+/**
+ * 批量更新当前项目下的环境常用配置（支持端口、账号、密码及扩展字段）
+ * @param {string} projectId 目标项目ID
+ * @param {Array<{ envKey: string, fields: Record<string, any> }>} updates 更新项
+ * @returns {{ success: boolean, updatedCount: number }}
+ */
+export function batchUpdateEnvsConfig(projectId, updates = []) {
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { success: true, updatedCount: 0 };
+  }
+
+  const data = getCommonEnvsConfig();
+  if (!data.envs) data.envs = {};
+  let updatedCount = 0;
+
+  updates.forEach(({ envKey, fields }) => {
+    if (!envKey || !fields || typeof fields !== 'object') return;
+    if (!data.envs[envKey]) data.envs[envKey] = {};
+
+    const scope = secretScope(envKey);
+    const envConf = data.envs[envKey];
+
+    // 1. 处理敏感密码字段（存入加密保险库，物理配置脱敏）
+    if ('online_password' in fields) {
+      const pwd = fields.online_password;
+      if (pwd && pwd !== '******') {
+        securityService.saveSecret(scope, 'online_password', String(pwd));
+      } else if (pwd === '') {
+        securityService.deleteSecret(scope, 'online_password');
+      }
+    }
+
+    // 2. 处理本地端口（整型转化）
+    if ('local_port' in fields) {
+      const portVal = fields.local_port;
+      envConf.local_port = portVal ? parseInt(portVal, 10) : null;
+    }
+
+    // 3. 处理其他通用字段
+    const allowedFields = ['online_username', 'login_url', 'local_login_path', 'VUE_DEV_HOST', 'remote_dir', 'company_name'];
+    allowedFields.forEach(k => {
+      if (k in fields) {
+        envConf[k] = String(fields[k] || '').trim();
+      }
+    });
+
+    updatedCount++;
+  });
+
+  writeJsonFile(getCommonEnvsFilePath(), data);
+  return { success: true, updatedCount };
+}

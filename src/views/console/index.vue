@@ -20,6 +20,7 @@ import SettingsModal from './components/settings/SettingsModal.vue'
 import PortOccupiedModal from './components/common/PortOccupiedModal.vue'
 import ProjectTabs from './components/project/ProjectTabs.vue'
 import AppUpdater from './components/AppUpdater.vue'
+import EnvBatchConfigModal from './components/env/EnvBatchConfigModal.vue'
 import { useAppUpdate } from './composables/useAppUpdate'
 
 // 核心数据状态
@@ -36,6 +37,11 @@ const envDetailModalRef = ref(null)
 const envModalRef = ref(null)
 const settingsModalRef = ref(null)
 const portOccupiedModalRef = ref(null)
+const batchConfigModalRef = ref(null)
+
+const openBatchConfigModal = () => {
+  batchConfigModalRef.value?.show(envs.value)
+}
 
 // 🚀 应用级配置（从后端 /api/app-config 动态获取，消灭前端硬编码）
 const appConfig = ref({
@@ -50,6 +56,10 @@ const anyLocalServiceRunning = computed(() => {
   return Object.values(envs.value).some(e => e && e.running) || globalRunningServices.value.length > 0
 })
 
+const runningEnvsCount = computed(() => {
+  return Object.values(envs.value).filter(e => e && e.running).length
+})
+
 // 🚀 全局跨项目正在运行的本地服务总揽状态
 const globalRunningServices = ref([])
 const stoppingEnvName = ref('')
@@ -60,6 +70,10 @@ let envFetchSequence = 0
 // 🚀 多项目多分支管理状态
 const projects = ref([])
 const activeProjectId = ref('')
+const currentProjectName = computed(() => {
+  const p = projects.value.find(item => item.id === activeProjectId.value)
+  return p ? p.name : ''
+})
 // 🚀 系统设置唤起与数据更新回调
 const openSettingsModal = () => {
   settingsModalRef.value?.show()
@@ -158,8 +172,24 @@ const removeMessage = (id) => {
   messages.value = messages.value.filter(m => m.id !== id)
 }
 
-// 环境列表（直接使用 envs，不再按子系统过滤）
-const filteredEnvs = computed(() => envs.value)
+// 🚀 环境列表即时搜索过滤
+const envSearchQuery = ref('')
+const filteredEnvs = computed(() => {
+  const query = envSearchQuery.value.trim().toLowerCase()
+  if (!query) return envs.value || {}
+  const result = {}
+  for (const [name, config] of Object.entries(envs.value || {})) {
+    if (!config) continue
+    const matchName = String(name).toLowerCase().includes(query)
+    const matchBranch = String(config.branch || '').toLowerCase().includes(query)
+    const matchPort = String(config.port || '').includes(query)
+    const matchCompany = String(config.company_name || '').toLowerCase().includes(query)
+    if (matchName || matchBranch || matchPort || matchCompany) {
+      result[name] = config
+    }
+  }
+  return result
+})
 
 
 
@@ -773,6 +803,7 @@ const isAnyModalOpen = computed(() => {
     envDetailModalRef.value?.visible ||
     envModalRef.value?.visible ||
     portOccupiedModalRef.value?.visible ||
+    batchConfigModalRef.value?.visible ||
     false
   )
 })
@@ -910,6 +941,7 @@ const handleEscClose = (e) => {
     return
   }
   // 主弹窗按打开频率排序
+  if (batchConfigModalRef.value?.visible) { batchConfigModalRef.value.hide(); return }
   if (settingsModalRef.value?.visible) { settingsModalRef.value.hide(); return }
   if (envDetailModalRef.value?.visible) { envDetailModalRef.value.hide(); return }
   if (envModalRef.value?.visible) { envModalRef.value.hide(); return }
@@ -970,7 +1002,10 @@ onUnmounted(() => {
       <div class="title-row">
         <h1>控制台</h1>
         <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
-          <button class="btn-settings-toggle" @click="openSettingsModal" title="系统设置">⚙️ 系统设置</button>
+          <button class="btn-settings-toggle" @click="openSettingsModal" title="系统设置">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M3 13l1.5-1.5M11.5 4.5L13 3"/></svg>
+            <span>系统设置</span>
+          </button>
           <ThemeSwitcher v-model="themeMode" @update:modelValue="selectTheme" />
         </div>
       </div>
@@ -1024,12 +1059,75 @@ onUnmounted(() => {
     @delete-project="deleteProject"
   />
 
-  <!-- 🖥️ 当前项目远程服务器状态（仅在有激活项目时显示） -->
-  <ServerCard
-    v-if="activeProjectId"
-    :sshInfo="sshInfo"
-    @updated="fetchEnvs"
-  />
+  <!-- 🎛️ 大盘核心掌控中枢 (3列并列卡片群：本地引擎、远程链路、工作区矩阵) -->
+  <div class="dashboard-hub-grid" v-if="activeProjectId">
+    <!-- 1. 本地服务引擎卡片 -->
+    <div class="hub-card local-engine-hub glass-card">
+      <div class="hub-card-header">
+        <div class="hub-header-title">
+          <span class="hub-icon">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="10" height="10" rx="2"/>
+              <circle cx="8" cy="8" r="2"/>
+              <path d="M8 1v2M8 13v2M1 8h2M13 8h2"/>
+            </svg>
+          </span>
+          <span>本地服务引擎</span>
+        </div>
+        <span class="hub-badge" :class="runningEnvsCount > 0 ? 'badge-running' : 'badge-idle'">
+          <span class="hub-badge-dot"></span>
+          <span>{{ runningEnvsCount > 0 ? '服务运行中' : '就绪待命' }}</span>
+        </span>
+      </div>
+      <div class="hub-card-body">
+        <div class="hub-metric-row">
+          <span class="hub-metric-num">{{ runningEnvsCount }}</span>
+          <span class="hub-metric-divider">/</span>
+          <span class="hub-metric-denom">{{ Object.keys(envs).length }}</span>
+          <span class="hub-metric-unit">活跃服务</span>
+        </div>
+      </div>
+      <div class="hub-card-footer">
+        <span class="hub-tip-text">支持本地环境独立并发调试</span>
+      </div>
+    </div>
+
+    <!-- 2. 远程部署集群卡片 -->
+    <ServerCard
+      :sshInfo="sshInfo"
+      @updated="fetchEnvs"
+    />
+
+    <!-- 3. 当前工作空间卡片 -->
+    <div class="hub-card workspace-hub glass-card">
+      <div class="hub-card-header">
+        <div class="hub-header-title">
+          <span class="hub-icon">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9zM2 6h12M6 6v8"/>
+            </svg>
+          </span>
+          <span>当前工作空间</span>
+        </div>
+        <span class="hub-badge badge-neutral">
+          <span>{{ currentProjectName || '默认项目' }}</span>
+        </span>
+      </div>
+      <div class="hub-card-body">
+        <div class="hub-metric-row">
+          <span class="hub-metric-num">{{ Object.keys(envs).length }}</span>
+          <span class="hub-metric-unit">组环境配置</span>
+        </div>
+      </div>
+      <div class="hub-card-footer workspace-footer">
+        <span class="hub-tip-text">独立配置矩阵与端口隔离</span>
+        <button class="hub-action-btn" @click="openBatchConfigModal" title="集中快速调整当前项目各环境的本地端口、登录账号与密码">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5h12M2 8h12M2 12.5h12M5 1.5v4M11 6v4M7 10.5v4"/></svg>
+          <span>环境集中配置</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <div class="main-layout">
     <div class="left-section">
@@ -1037,23 +1135,38 @@ onUnmounted(() => {
       <div v-if="projects.length > 0" class="left-section-container">
         <div class="env-section-header">
           <div class="header-left">
-            <span class="header-icon">🚀</span>
-            <h2>本地开发环境 ({{ Object.keys(envs).length }} 个)</h2>
+            <span class="header-icon">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9zM2 6h12M6 6v8"/></svg>
+            </span>
+            <h2>本地开发环境</h2>
           </div>
-          <button class="btn-add-env-btn" @click="openAddEnv" title="在当前项目下新增开发环境">
-            ➕ 新增环境
-          </button>
+          <div class="header-right-actions">
+            <div class="search-input-wrapper">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+              <input 
+                v-model="envSearchQuery" 
+                type="text" 
+                placeholder="搜索环境、分支或端口..." 
+                class="env-search-input"
+              />
+              <button v-if="envSearchQuery" class="clear-search-btn" @click="envSearchQuery = ''">✕</button>
+            </div>
+            <button class="btn-add-env-btn" @click="openAddEnv" title="在当前项目下新增开发环境">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+              <span>新增环境</span>
+            </button>
+          </div>
         </div>
 
         <div class="env-table-container glass-card animate-zoom" v-if="Object.keys(filteredEnvs).length > 0">
           <table class="env-table">
             <thead>
               <tr>
-                <th style="width: 40px; text-align: center;">状态</th>
-                <th style="min-width: 100px; width: 15%;">环境名</th>
-                <th style="min-width: 100px; width: 15%;">本地端口</th>
-                <th style="min-width: 350px; width: 55%;">Git 远程分支</th>
-                <th style="width: 180px; text-align: center;">操作</th>
+                <th style="width: 48px; text-align: center;">状态</th>
+                <th style="width: 160px;">环境名</th>
+                <th style="width: 120px; text-align: center;">本地端口</th>
+                <th>Git 远程分支</th>
+                <th style="width: 180px; text-align: right; padding-right: 18px;">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -1079,20 +1192,26 @@ onUnmounted(() => {
           </table>
         </div>
         <div class="glass-card empty-tab-envs-panel animate-zoom" v-else>
-          <div class="empty-icon">💡</div>
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+          </div>
           <h3>暂无开发环境</h3>
           <p>当前项目尚未创建任何开发环境。</p>
           <button class="tab-btn-add" style="margin: 12px auto 0; display: inline-flex;" @click="openAddEnv">
-            ➕ 新建环境
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+            <span>新建环境</span>
           </button>
         </div>
       </div>
       <div class="glass-card empty-projects-panel animate-zoom" v-else>
-        <div class="empty-icon">📂</div>
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
         <h3>暂未登记开发项目</h3>
-        <p>控制台下方需要读取您本地的 Vue 项目开发环境。请点击上方<b>【➕ 新增项目】</b>登记您的本地项目磁盘物理绝对路径。</p>
+        <p>控制台下方需要读取您本地的 Vue 项目开发环境。请点击上方<b>【新增项目】</b>登记您的本地项目磁盘物理绝对路径。</p>
         <button class="tab-btn-add" style="margin: 0 auto; display: inline-flex;" @click="openAddProject">
-          ➕ 立即登记新项目
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          <span>立即登记新项目</span>
         </button>
       </div>
     </div>
@@ -1140,10 +1259,304 @@ onUnmounted(() => {
     @viewUpdate="settingsModalRef?.show('about')"
     @confirmInstall="confirmInstallAndExit"
   />
+
+  <!-- 🎛️ 项目环境集中配置工作台 (端口、账号、密码及扩展字段) -->
+  <EnvBatchConfigModal
+    ref="batchConfigModalRef"
+    :projectId="activeProjectId"
+    :projectName="currentProjectName"
+    @updated="fetchEnvs"
+    @message="({ text, type }) => showMessage(text, type)"
+  />
 </template>
 
 
 <style scoped>
+/* 🎛️ 大盘核心掌控中枢 (3列并列卡片网格) */
+.dashboard-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0 22px 0;
+}
+
+.hub-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 20px;
+  min-height: 120px;
+  border-radius: var(--radius-card, 20px);
+  box-sizing: border-box;
+}
+
+.hub-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.hub-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  letter-spacing: var(--tracking-caps, 0.045em);
+  text-transform: uppercase;
+}
+
+.hub-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.hub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill, 980px);
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: -0.006em;
+}
+
+.hub-badge.badge-running {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--color-success, #34c759);
+  border: 1px solid rgba(52, 199, 89, 0.22);
+}
+
+.hub-badge.badge-idle {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .hub-badge.badge-idle {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.hub-badge.badge-neutral {
+  background: rgba(0, 102, 204, 0.07);
+  color: var(--color-brand, #0066cc);
+  border: 1px solid rgba(0, 102, 204, 0.18);
+}
+
+[data-theme="dark"] .hub-badge.badge-neutral {
+  background: rgba(41, 151, 255, 0.12);
+  color: #2997ff;
+  border-color: rgba(41, 151, 255, 0.25);
+}
+
+.hub-badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.badge-running .hub-badge-dot {
+  animation: hub-pulse-glow 1.8s infinite ease-in-out;
+}
+
+@keyframes hub-pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
+.hub-card-body {
+  margin-bottom: 8px;
+}
+
+.hub-metric-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.hub-metric-num {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--text);
+  font-family: "SF Pro Display", BlinkMacSystemFont, sans-serif;
+}
+
+.hub-metric-divider {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin: 0 1px;
+}
+
+.hub-metric-denom {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.hub-metric-unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+
+.hub-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  padding-top: 8px;
+  margin-top: 4px;
+  min-height: 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .hub-card-footer {
+  border-top-color: rgba(255, 255, 255, 0.05);
+}
+
+.hub-tip-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: -0.006em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hub-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 9px;
+  height: 24px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: var(--radius-pill, 980px);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.hub-action-btn svg {
+  display: block;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.hub-action-btn span {
+  display: inline-block;
+  line-height: 1;
+}
+
+[data-theme="dark"] .hub-action-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.hub-action-btn:hover:not(:disabled) {
+  background: var(--surface, #ffffff);
+  color: var(--color-brand, #0066cc);
+  border-color: rgba(0, 102, 204, 0.25);
+  transform: translateY(-0.5px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .hub-action-btn:hover:not(:disabled) {
+  background: #2c2c2e;
+  color: #2997ff;
+  border-color: rgba(41, 151, 255, 0.3);
+}
+
+/* 🔍 环境即时搜索过滤框与头部操作区 (苹果极简浅灰微凹槽) */
+.header-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.045);
+  border: none;
+  border-radius: var(--radius-pill, 980px);
+  padding: 0 12px 0 14px;
+  height: 34px;
+  color: var(--text-secondary);
+  transition: all 0.24s cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+[data-theme="dark"] .search-input-wrapper {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.search-input-wrapper:focus-within {
+  background: var(--surface, #ffffff);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.16);
+  color: var(--color-brand, #0066cc);
+}
+
+[data-theme="dark"] .search-input-wrapper:focus-within {
+  background: #24252c;
+  box-shadow: 0 0 0 3px rgba(41, 151, 255, 0.25);
+}
+
+.env-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  letter-spacing: var(--tracking-body, -0.006em);
+  color: var(--text);
+  padding: 0 8px;
+  width: 180px;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-input-wrapper:focus-within .env-search-input {
+  width: 240px;
+}
+
+.clear-search-btn {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 50%;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.clear-search-btn:hover {
+  color: var(--text);
+}
 .projects-tabs-bar {
   margin: 0.8rem 0;
   background: rgba(255, 255, 255, 0.4);
@@ -1463,56 +1876,50 @@ onUnmounted(() => {
 .env-section-header .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .env-section-header .header-left .header-icon {
-  font-size: 1.4rem;
-  animation: pulse-icon 2.s infinite ease-in-out;
-  display: inline-block;
-}
-
-@keyframes pulse-icon {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
 }
 
 .env-section-header h2 {
-  font-size: 1.25rem;
-  font-weight: 750;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   margin: 0;
-  background: linear-gradient(135deg, var(--text) 0%, #6366f1 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text);
 }
 
 .btn-add-env-btn {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-color);
-  font-size: 0.82rem;
-  font-weight: 750;
-  border-radius: 12px;
-  padding: 9px 18px;
+  background: var(--color-brand, #0066cc);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-body, -0.006em);
+  border-radius: var(--radius-pill, 980px);
+  padding: 0 16px;
+  height: 34px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 102, 204, 0.25);
+  transition: all 0.24s cubic-bezier(0.4, 0, 0.6, 1);
   outline: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--btn-primary-border);
+  border: none;
 }
 
 .btn-add-env-btn:hover {
-  transform: translateY(-2px);
-  background: var(--btn-primary-color);
-  color: #ffffff;
-  border-color: var(--btn-primary-color);
-  box-shadow: 0 6px 15px rgba(99, 102, 241, 0.25);
+  background: var(--color-brand-hover, #0077ed);
+  box-shadow: 0 3px 8px rgba(0, 102, 204, 0.35);
+  transform: translateY(-0.5px);
 }
 
 .btn-add-env-btn:active {
-  transform: translateY(0);
+  transform: scale(0.975);
 }
 
 .env-modal-content {
@@ -1850,16 +2257,31 @@ onUnmounted(() => {
   border-color: rgba(99, 102, 241, 0.2);
 }
 
-/* 🏢 统一高阶扁平化表格布局 */
+/* 🏢 统一高阶立体浮雕表格布局 */
 .env-table-container {
   overflow-x: auto;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--panel-bg);
   border: var(--border);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  margin-top: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 8px 24px -4px rgba(0, 0, 0, 0.05);
+  margin-top: 12px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.env-table-container:hover {
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04), 0 12px 32px -4px rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="dark"] .env-table-container {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .env-table-container:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 12px 32px -4px rgba(0, 0, 0, 0.5);
 }
 
 .env-table {
@@ -1870,19 +2292,19 @@ onUnmounted(() => {
 
 .env-table th {
   background: rgba(0, 0, 0, 0.02);
-  padding: 10px 12px;
+  padding: 12px 14px;
   font-size: 0.72rem;
-  font-weight: 850;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.06);
-  letter-spacing: 0.5px;
-  white-space: nowrap; /* 🚫 强制表头不换行，保持精美扁平化控制台观感 */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 [data-theme="dark"] .env-table th {
   background: rgba(255, 255, 255, 0.02);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 /* ==========================================
    🔍 极简高对比度环境详情模态框 CSS
@@ -2102,29 +2524,36 @@ onUnmounted(() => {
 
 /* 🚀 系统设置齿轮按钮交互样式 */
 .btn-settings-toggle {
-  background: var(--btn-toggle-bg);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   color: var(--text);
-  padding: 5px 12px;
+  padding: 4px 12px;
   font-size: 13px;
-  font-weight: 600;
-  border-radius: 6px;
+  font-weight: 500;
+  border-radius: var(--radius-pill, 9999px);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  gap: 5px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 [data-theme="dark"] .btn-settings-toggle {
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .btn-settings-toggle:hover {
-  background: var(--btn-def-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  background: var(--surface, #ffffff);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transform: translateY(-0.5px);
+}
+
+[data-theme="dark"] .btn-settings-toggle:hover {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .btn-settings-toggle:active {
