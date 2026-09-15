@@ -73,10 +73,21 @@ pub fn run() {
           .build(app)?;
       }
 
-      // 🚀 软件打开时自动拉起后台 Node.js 后端服务，实现双击开箱即用
-      let app_handle = app.handle();
-      if let Err(e) = start_backend_server_inner(app_handle) {
-        eprintln!("自动启动后端服务失败: {}", e);
+      // 🚀 仅在生产打包环境下（用户双击 exe 且无控制台时），由桌面外壳自动拉起后台 Node.js
+      // 开发环境下，后端服务已由 npm run dev 独立控制台拉起，无需也不应重复启动打包版后端
+      #[cfg(not(debug_assertions))]
+      {
+        let app_handle = app.handle();
+        if let Err(e) = start_backend_server_inner(app_handle) {
+          eprintln!("自动启动后端服务失败: {}", e);
+        }
+      }
+
+      // 💡 确保主窗口获得焦点并置于最前台，避免被外部新弹出的 PowerShell 窗口遮挡
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
       }
 
       Ok(())

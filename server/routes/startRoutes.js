@@ -96,7 +96,7 @@ function buildVersionedRunCommand(runCommand, nodeVersion, isWin) {
  * 跨平台本地开发服务启动执行器。
  * 支持：
  * 1. Windows: 弹出物理独立的 PowerShell 终端并输出日志落盘（体验极佳）。
- * 2. macOS: 利用 AppleScript 自动拉起原生 Terminal 并实时输出日志落盘。
+ * 2. macOS: 利用 macOS 终端脚本 自动拉起原生 Terminal 并实时输出日志落盘。
  * 3. Linux/WSL: 在后台以物理隔离子进程形式运行，并重定向输出流至日志文件。
  */
 function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, envVars, runCommand, logFilePath, dateStr, customNodeVersion) {
@@ -187,17 +187,17 @@ function runLocalCommandCrossPlatform(targetWorkingDir, envName, assignedPort, e
       cwd: targetWorkingDir
     });
   } else if (isMac) {
-    // macOS 环境：利用 AppleScript 自动打开一个独立的 Terminal 窗口
+    // macOS 环境：利用 macOS 终端脚本 自动打开一个独立的 Terminal 窗口
     const envInjections = Object.entries(envVars)
       .map(([key, val]) => `${key}=${JSON.stringify(val)}`)
       .join(' ');
 
-    const appleScriptCmd = `tell application "Terminal"
+    const macTerminalScriptCmd = `tell application "Terminal"
       activate
       do script "cd ${JSON.stringify(targetWorkingDir)} && env PORT=${assignedPort} NODE_ENV=development ${envInjections} ${versionedRunCommand} 2>&1 | tee ${JSON.stringify(logFilePath)}; echo '----------------------------------------'; echo '[OmniDev] 服务已运行结束。按回车键关闭此窗口'; read"
     end tell`;
 
-    exec(`osascript -e ${JSON.stringify(appleScriptCmd)}`, (err) => {
+    exec(`osascript -e ${JSON.stringify(macTerminalScriptCmd)}`, (err) => {
       if (err) {
         console.error('[OmniDev macOS] 启动 Terminal 失败，将直接降级运行:', err);
       }

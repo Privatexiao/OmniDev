@@ -404,11 +404,11 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 🖥️ 快捷指令与即时 Shell 执行条 -->
+    <!-- 快捷指令与即时 Shell 执行条 -->
     <div v-if="terminalType === 'remote'" class="terminal-footer">
       <!-- 快捷命令选项行 -->
       <div class="quick-commands-row">
-        <span class="quick-title">⚡ 快捷指令:</span>
+        <span class="quick-title">快捷指令:</span>
         <div class="quick-list">
           <button 
             v-for="(cmd, idx) in quickCommands" 
@@ -422,7 +422,9 @@ onMounted(() => {
           </button>
           
           <button class="btn-quick-edit" @click="isEditMode = !isEditMode" :class="{ 'editing-active': isEditMode }">
-            {{ isEditMode ? '💾 完成管理' : '⚙️ 管理指令' }}
+            <svg v-if="isEditMode" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
+            <svg v-else viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M3 13l1.5-1.5M11.5 4.5L13 3"/></svg>
+            <span>{{ isEditMode ? '完成管理' : '管理指令' }}</span>
           </button>
         </div>
       </div>
@@ -432,11 +434,14 @@ onMounted(() => {
         <input 
           type="text" 
           v-model="newCommandInput" 
-          placeholder="➕ 输入新的快捷 Shell 指令 (如: npm run build)..." 
+          placeholder="输入新的快捷 Shell 指令 (如: npm run build)..." 
           class="add-cmd-input"
           @keyup.enter="addQuickCommand"
         />
-        <button class="btn-add-cmd" @click="addQuickCommand">➕ 新增</button>
+        <button class="btn-add-cmd" @click="addQuickCommand">
+          <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          <span>新增</span>
+        </button>
       </div>
 
       <!-- 即时 Shell 输入确定框 (回车送达) -->
@@ -445,7 +450,7 @@ onMounted(() => {
         <input 
           type="text" 
           v-model="customCommand" 
-          placeholder="💡 输入远程指令并回车 (Enter) 直接在测试服务器执行..." 
+          placeholder="输入远程指令并回车 (Enter) 直接在测试服务器执行..." 
           class="shell-input"
           :disabled="executing"
           @keyup.enter="executeCommand(customCommand)"
