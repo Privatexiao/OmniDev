@@ -1,7 +1,7 @@
 {
-  "version": "0.1.9",
+  "version": "0.1.10",
   "updateMode": "automatic",
-  "changelog": "修复登录凭证被项目环境配置覆盖的问题",
+  "changelog": "全套弹窗视觉与设置中心交互重构，新增环境集中配置工作台",
   "downloadUrlTemplate": "https://github.com/Privatexiao/OmniDev/releases/download/v{{version}}/OmniDev_{{version}}_x64-setup.exe",
-  "updaterSignature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeDhqdTlPMExsNlE5ZUJLaUJBdExDVjE1OU9kbk5UM050aW5OZlVraEpUN0JYRWI2TXVJTXpmNWp1VmV3L2RtOFY2VEdLbmpBeFVJOU5oRnMyS2FJMmdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjI4OTEzCWZpbGU6T21uaURldl8wLjEuOV94NjQtc2V0dXAuZXhlCm1QUGtNVmpNOFZjVjNib0pQdkZYbmFXNDVHNmQrZmJkTy9DOEVlWDZ1RGFFUEVPSFBkeXMzOG40NFpQOWdqNG1TMy9jWFppMXU5UDNBdHBJdWxNZUNRPT0K"
+  "updaterSignature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUnlMd3V5cFRoeDNENkwwS3ExcVNua0Z6NXJJZ0JmdlkvRDB0UjM1OUluaUkyRWhZU2JWNWMybnhMVm9yZ2xqTjJqWkRtQUdFZ1ZqaFh5ZEJadkF2T0lvTmxEWi9Od3d3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NDU0MzczCWZpbGU6T21uaURldl8wLjEuMTBfeDY0LXNldHVwLmV4ZQpnT1VLQ0d5eWovZEdKTmtDT2ZyOEhmWVNCUFgwTU5USGZ6WENieFdKZnQzek5WdTBCM2E0MzFTc2VEdXRldUlqMzJBdzFyemRod2h4R2ZjSHl4MWVBdz09Cg=="
 }
